@@ -5,19 +5,20 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        java: [8, 10, 11, 12, 13]
-
-    steps:
-    - uses: actions/checkout@v2
-    - name: Set up JDK
-      uses: actions/setup-java@v1
-      with:
-        java-version: ${{ matrix.java }}
-    - name: Build with Maven
-      run: mvn -B package --file pom.xml
+    # build-maven.yml, not build-backend-module.yml: this is a plain Keycloak provider JAR, and the
+    # backend-module workflow expects an omod module to package and checksum.
+    uses: openmrs/openmrs-contrib-gha-workflows/.github/workflows/build-maven.yml@main
+    with:
+      # Stated rather than inferred. The matrix this replaces was [8, 10, 11, 12, 13], and the pom
+      # sets maven.compiler.release=17, so javac refused with "release version 17 not supported" and
+      # fail-fast cancelled the rest -- the whole matrix was red for a reason unrelated to any change.
+      # 17 is the bytecode target; 21 is what Keycloak 26 runs on. Both have to pass.
+      java_versions: '[17, 21]'
+      main_java_version: '17'
+      # This repository declares no distributionManagement, so there is no snapshot repository to
+      # deploy to.
+      deploy_snapshots: false
