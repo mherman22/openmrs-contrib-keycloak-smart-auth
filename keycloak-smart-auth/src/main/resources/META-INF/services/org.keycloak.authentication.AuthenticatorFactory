@@ -1,0 +1,4 @@
+org.openmrs.contrib.keycloak.smart.auth.provider.SmartLaunchAuthenticatorFactory
+org.openmrs.contrib.keycloak.smart.auth.provider.SmartLaunchAccessAuthenticatorFactory
+org.openmrs.contrib.keycloak.smart.auth.provider.AlternativeUsernamePasswordFormFactory
+org.openmrs.contrib.keycloak.smart.auth.provider.SmartAudienceValidatorFactory

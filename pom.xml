@@ -3,26 +3,25 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.openmrs.contrib</groupId>
-    <artifactId>openmrs-keycloak-smart-authentication</artifactId>
+    <artifactId>keycloak-smart-auth-parent</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <modules>
-        <module>openmrs-keycloak-smart-auth</module>
-        <module>openmrs-keycloak-ear</module>
+        <module>keycloak-smart-auth</module>
     </modules>
 
     <packaging>pom</packaging>
     
     <repositories>
         <repository>
-            <id>openmrs-repo</id>
-            <name>OpenMRS Nexus Repository</name>
-            <url>https://mavenrepo.openmrs.org/nexus/content/repositories/public</url>
-        </repository>
-        <repository>
             <id>central</id>
             <name>Maven Repository Switchboard</name>
             <layout>default</layout>
             <url>https://repo1.maven.org/maven2</url>
+        </repository>
+        <repository>
+            <id>openmrs-repo</id>
+            <name>OpenMRS Nexus Repository</name>
+            <url>https://mavenrepo.openmrs.org/nexus/content/repositories/public</url>
         </repository>
     </repositories>
     <pluginRepositories>
@@ -81,16 +80,24 @@
 
             <!-- testing -->
             <dependency>
-                <groupId>junit</groupId>
-                <artifactId>junit</artifactId>
-                <version>4.13.1</version>
-                <scope>test</scope>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
 
             <dependency>
                 <groupId>org.mockito</groupId>
                 <artifactId>mockito-core</artifactId>
-                <version>3.2.4</version>
+                <version>${mockito.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-junit-jupiter</artifactId>
+                <version>${mockito.version}</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>
@@ -100,31 +107,23 @@
         <pluginManagement>
             <plugins>
                 <plugin>
-                    <groupId>org.wildfly.plugins</groupId>
-                    <artifactId>wildfly-maven-plugin</artifactId>
-                    <version>2.0.2.Final</version>
-                    <configuration>
-                        <skip>false</skip>
-                    </configuration>
-                </plugin>
-                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.8.1</version>
                     <configuration>
-                        <source>8</source>
-                        <target>8</target>
+                        <release>${maven.compiler.release}</release>
                     </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.0.0-M4</version>
+                    <version>3.5.2</version>
                 </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.8.5</version>
+                    <!-- 0.8.5 cannot read Java 17 bytecode (class file major version 61) -->
+                    <version>0.8.12</version>
                     <executions>
                         <execution>
                             <goals>
@@ -237,21 +236,16 @@
                         </execution>
                     </executions>
                 </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-ear-plugin</artifactId>
-                    <version>3.0.2</version>
-                    <configuration>
-                        <defaultLibBundleDir>APP-INF/lib</defaultLibBundleDir>
-                    </configuration>
-                </plugin>
             </plugins>
         </pluginManagement>
     </build>
 
     <properties>
-        <keycloak.version>14.0.0</keycloak.version>
-        <openmrsPlatformVersion>2.4.0</openmrsPlatformVersion>
+        <keycloak.version>26.7.1</keycloak.version>
+        <junit.version>5.11.4</junit.version>
+        <mockito.version>5.14.2</mockito.version>
+        <openmrsPlatformVersion>2.8.8</openmrsPlatformVersion>
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
     </properties>
