@@ -78,15 +78,31 @@ public class SmartContextClaimMapper extends AbstractOIDCProtocolMapper implemen
 		String patientUuid = userSession.getNote(SMART_PATIENT_PARAMS);
 		String visitUuid = userSession.getNote(SMART_VISIT_PARAMS);
 
-		if (patientUuid != null) {
+		// Blank means the launch established no such context, which is how the authenticator clears a
+		// note left by an earlier launch on the same session. Emitting it would hand the app an empty
+		// context reference, which is worse than none: a client cannot tell it apart from a real id.
+		if (!isBlank(patientUuid)) {
 			token.getOtherClaims().put("patient", patientUuid);
 		}
-		if (visitUuid != null) {
+		if (!isBlank(visitUuid)) {
 			token.getOtherClaims().put("encounter", visitUuid);
 		}
 
-		setClaim(token, mappingModel, userSession, session, clientSessionCtx);
+		// setClaim writes the configured note under the configured claim name, which is the same context
+		// by another route -- and it does not know that blank means absent, so on its own it emitted
+		// "encounter": "" once a launch had cleared the note. Skipped when the note this instance is
+		// configured to read holds nothing.
+		String configuredNote = mappingModel.getConfig().get(ProtocolMapperUtils.USER_SESSION_NOTE);
+
+		if (configuredNote == null || !isBlank(userSession.getNote(configuredNote))) {
+			setClaim(token, mappingModel, userSession, session, clientSessionCtx);
+		}
+
 		return token;
+	}
+
+	private static boolean isBlank(String value) {
+		return value == null || value.trim().isEmpty();
 	}
 
 	@Override
