@@ -77,10 +77,13 @@ public class SmartLaunchAccessAuthenticatorFactory implements AuthenticatorFacto
 				"URL of the endpoint to redirect to.",
 				STRING_TYPE, SmartLaunchAccessAuthenticator.DEFAULT_PATIENT_ACCESS_URL);
 
+		// No default value: an empty default advertises "" as a usable key, and this authenticator
+		// rejects the launch rather than trust a token signed with one. See
+		// SmartLaunchAccessAuthenticator#getSecretKey.
 		ProviderConfigProperty smartLaunchKey = new ProviderConfigProperty(CONFIG_SMART_LAUNCH_ACCESS_SECRET_KEY,
 				"SMART Launch Access Secret Key",
-				"HmacSHA256 secret key for smart launch external application.",
-				PASSWORD, SmartLaunchAccessAuthenticator.DEFAULT_EXTERNAL_SMART_LAUNCH_SECRET_KEY);
+				"Base64-encoded HmacSHA256 secret key shared with the OpenMRS SMART on FHIR module. Required: an unconfigured authenticator rejects every launch.",
+				PASSWORD, null);
 
 		return Arrays.asList(patientSelectionUrl, smartLaunchKey);
 	}
