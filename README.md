@@ -100,6 +100,43 @@ audience validator cannot be configured as `ALTERNATIVE` — an audience check a
 satisfy instead is not a check. The rest cover the validator's accept and reject matrix, both fail-closed
 secret paths, the context mapper, and launch scope extraction.
 
+### Proving the tests can fail
+
+A test that keeps passing while the defect is present is not testing anything. `tools/mutation-check.py`
+reintroduces each real defect one at a time and asserts the relevant test fails:
+
+```bash
+JAVA_HOME=/path/to/jdk-17 tools/mutation-check.py
+JAVA_HOME=/path/to/jdk-17 tools/mutation-check.py audience   # only mutations whose label matches
+```
+
+It checks the suite passes first, restores every file it touches, and exits non-zero if a defect goes
+undetected **or** if a mutation pattern has gone stale because the code moved — a stale pattern means
+that defect is no longer covered, which is indistinguishable from having no test. It is deliberately not
+run in CI: it edits the working tree and runs the suite once per mutation.
+
+| Security property | Covered by | Mutation |
+|---|---|---|
+| Audience match is exact, not prefix or substring | `SmartAudienceValidatorTest.Rejects` | match by `startsWith` |
+| Audience match is case-sensitive | `SmartAudienceValidatorTest.Rejects` | normalise to lower case |
+| A trailing slash is the same resource | `SmartAudienceValidatorTest.Accepts` | drop the normalisation |
+| Unconfigured audience validator rejects | `SmartAudienceValidatorTest.FailsClosed` | `context.success()` when unconfigured |
+| Unconfigured launch secret rejects, both launch types | `SmartLaunchSecretTest` | fall back to a built-in key |
+| Neither launch secret has a default | `SmartLaunchSecretTest.Defaults` | restore the empty default |
+| Audience validator refuses `ALTERNATIVE` | `ProviderContractTest` | add `ALTERNATIVE` to its choices |
+| Provider ids fit `VARCHAR(36)` | `ProviderContractTest` | 37-character id |
+| Every authenticator is registered | `ProviderContractTest` | remove the services entry |
+| Login form does not shadow the built-in | `ProviderContractTest` | re-declare the built-in id |
+| Launch context claims reach the token response | `SmartContextClaimMapperTest` | rename the claim; drop `mapClaim` |
+| Launch types are extracted exactly | `SmartLaunchAuthenticatorScopeTest` | off-by-one on the prefix |
+
+15 of 15 detected on the current tree.
+
+**Not covered here, by design.** Everything realm-side: flow composition, whether the alternatives are
+reachable, client scopes, where the audience mapper is attached, PKCE, and every config key spelling.
+Those are checked by `realm/verify-realm-import.sh` in the distribution. Nor does anything in either
+repository establish that a launch works end to end — only a browser does.
+
 ## The three repositories
 
 | | |
