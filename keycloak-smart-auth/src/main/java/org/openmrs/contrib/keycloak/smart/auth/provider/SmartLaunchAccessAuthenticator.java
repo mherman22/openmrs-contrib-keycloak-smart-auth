@@ -10,6 +10,7 @@
 package org.openmrs.contrib.keycloak.smart.auth.provider;
 
 import org.apache.commons.lang3.StringUtils;
+import org.jboss.logging.Logger;
 import org.keycloak.TokenVerifier;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.AuthenticationFlowError;
@@ -57,7 +58,7 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 
 	public static final String DEFAULT_PATIENT_ACCESS_URL = "http://localhost:8080/openmrs/smartonfhir/smartAccessConfirmation?token={TOKEN}&launch={launchUuid}";
 
-	public static final String DEFAULT_EXTERNAL_SMART_LAUNCH_SECRET_KEY = "";
+	private static final Logger logger = Logger.getLogger(SmartLaunchAccessAuthenticator.class);
 
 	/**
 	 * Hands the browser to OpenMRS so that the EHR can say who is signed in, and comes back into this
@@ -226,7 +227,17 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 		return new JWSBuilder().type(JWT).jsonContent(userToken).sign(signer);
 	}
 
-	private SecretKeySpec getSecretKey(AuthenticatorConfigModel authenticatorConfig, String realmName) throws
+	/**
+	 * The shared secret that signs the token sent to OpenMRS and verifies the one it returns. On this
+	 * authenticator that returned token <em>is</em> the authentication: {@link #action} takes its
+	 * subject as the signed-in clinician and no password is ever presented. Fails closed when
+	 * unconfigured, as {@link SmartAudienceValidator} does and for the same reason: an empty or
+	 * defaulted key is one an attacker also knows, and would let anyone forge the EHR launch. There is
+	 * deliberately no default.
+	 * <p>
+	 * Package-private so the fail-closed path can be tested.
+	 */
+	SecretKeySpec getSecretKey(AuthenticatorConfigModel authenticatorConfig, String realmName) throws
 			IOException {
 		String secretKey = null;
 		if (authenticatorConfig != null) {
@@ -235,6 +246,8 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 		}
 
 		if (StringUtils.isBlank(secretKey)) {
+			logger.warnf("Refusing to sign or verify a SMART launch token: %s is not configured for realm %s",
+					SmartLaunchAccessAuthenticatorFactory.CONFIG_SMART_LAUNCH_ACCESS_SECRET_KEY, realmName);
 			throw new AuthenticationFlowException("Secret key is not configured for realm " + realmName,
 					AuthenticationFlowError.INTERNAL_ERROR);
 		}

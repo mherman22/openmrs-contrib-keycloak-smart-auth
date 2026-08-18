@@ -68,8 +68,6 @@ public class SmartLaunchAuthenticator implements Authenticator {
 
 	public static final String DEFAULT_PATIENT_SELECTION_APP_URL = "http://localhost:8080/openmrs/smartonfhir/findPatient.page?app=smart.search&token={TOKEN}";
 
-	public static final String DEFAULT_EXTERNAL_SMART_LAUNCH_SECRET_KEY = "";
-
 	public static final String LAUNCH_SCOPE_PREFIX = "launch/";
 
 	public static final String LAUNCH_CLIENT_REQUEST_PARAM = "client_request_param_launch";
@@ -281,7 +279,16 @@ public class SmartLaunchAuthenticator implements Authenticator {
 				.verify();
 	}
 
-	private SecretKeySpec getSecretKey(AuthenticatorConfigModel authenticatorConfig, String realmName) throws IOException {
+	/**
+	 * The shared secret that signs the token sent to OpenMRS and verifies the one it returns. Fails
+	 * closed when unconfigured, as {@link SmartAudienceValidator} does and for the same reason:
+	 * anything able to sign with this key can assert a username and a launch context to Keycloak
+	 * without a password, so an unconfigured deployment must reject the launch rather than fall back
+	 * to a key an attacker also knows. There is deliberately no default.
+	 * <p>
+	 * Package-private so the fail-closed path can be tested.
+	 */
+	SecretKeySpec getSecretKey(AuthenticatorConfigModel authenticatorConfig, String realmName) throws IOException {
 		String secretKey = null;
 
 		if (authenticatorConfig != null) {
@@ -290,6 +297,8 @@ public class SmartLaunchAuthenticator implements Authenticator {
 		}
 
 		if (StringUtils.isBlank(secretKey)) {
+			logger.warnf("Refusing to sign or verify a SMART launch token: %s is not configured for realm %s",
+					SmartLaunchAuthenticatorFactory.CONFIG_EXTERNAL_SMART_LAUNCH_SECRET_KEY, realmName);
 			throw new AuthenticationFlowException("Secret key is not configured for realm " + realmName,
 					AuthenticationFlowError.INTERNAL_ERROR);
 		}

@@ -85,7 +85,8 @@ An execution refers to a block by its alias.
 Both secret keys hold the same value the OpenMRS module reads from its own configuration. Treat it as a
 private key — anything able to sign with it can assert any username to Keycloak without a password.
 Everything here fails closed, so a missing key or audience rejects every request rather than letting one
-through unchecked.
+through unchecked. Neither key has a default, deliberately: a default is a secret every deployment
+shares, and an authenticator with nothing configured refuses the launch instead.
 
 ## Tests
 
@@ -96,8 +97,8 @@ mvn test
 `ProviderContractTest` covers what the compiler cannot: that every authenticator is registered for
 Keycloak to discover, that provider ids fit the 36-character column Keycloak stores them in, and that the
 audience validator cannot be configured as `ALTERNATIVE` — an audience check a sibling execution can
-satisfy instead is not a check. The rest cover the validator's accept and reject matrix, the context
-mapper, and launch scope extraction.
+satisfy instead is not a check. The rest cover the validator's accept and reject matrix, both fail-closed
+secret paths, the context mapper, and launch scope extraction.
 
 ## The three repositories
 
