@@ -31,6 +31,7 @@ $KEYCLOAK_HOME/bin/kc.sh build
 
 The Keycloak version is pinned, not floated: every SPI here is one Keycloak marks internal, logging
 `KC-SERVICES0047` for each, so an upgrade can break this plugin with no compiler warning.
+[UPGRADING.md](UPGRADING.md) lists those couplings and how to verify each one on a version bump.
 
 ## The JAR alone does nothing
 
@@ -135,7 +136,7 @@ run in CI: it edits the working tree and runs the suite once per mutation.
 **Not covered here, by design.** Everything realm-side: flow composition, whether the alternatives are
 reachable, client scopes, where the audience mapper is attached, PKCE, and every config key spelling.
 Those are checked by `realm/verify-realm-import.sh` in the distribution. Nor does anything in either
-repository establish that a launch works end to end — only a browser does.
+repository establish that a launch works end to end — only a browser does. See [UPGRADING.md](UPGRADING.md).
 
 ## The three repositories
 
