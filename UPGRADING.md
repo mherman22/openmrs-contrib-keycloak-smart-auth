@@ -14,14 +14,12 @@ Order of work on a version bump
 1. Bump `keycloak.version` in the root `pom.xml`. Nothing else pins a version.
 2. `mvn clean test`. This is the compile-time half: it catches SPI signature changes and
    the constraints in `ProviderContractTest`.
-3. `tools/mutation-check.py`. Confirms the security tests still detect the defects they
-   were written for, rather than having quietly stopped covering moved code.
-4. Deploy and build: copy the JAR into `$KEYCLOAK_HOME/providers/`, run `kc.sh build`,
+3. Deploy and build: copy the JAR into `$KEYCLOAK_HOME/providers/`, run `kc.sh build`,
    start the server. Check the log lists all five providers.
-5. Run the distribution's `realm/verify-realm-import.sh` (in
+4. Run the distribution's `realm/verify-realm-import.sh` (in
    openmrs-distro-smartonfhir). Realm-side checks live there, not here.
-6. Walk both launch types in a **browser**, not with curl: an EHR launch and a standalone
-   launch, through to a FHIR call with the issued token. Steps 2–5 have all passed on
+5. Walk both launch types in a **browser**, not with curl: an EHR launch and a standalone
+   launch, through to a FHIR call with the issued token. Steps 2–4 have all passed on
    changes that were completely broken in a browser.
 
 The couplings
@@ -180,9 +178,8 @@ baseline means raising `maven.compiler.release` and that matrix together.
 What the tests can and cannot tell you
 --------------------------------------
 
-`mvn test` plus `tools/mutation-check.py` cover provider identity, the audience match, the
-fail-closed paths and the launch-context claims — see the coverage table in the README. They
-cover **nothing** about the realm: flow composition, client scopes, the audience mapper's
+`mvn test` covers provider identity, the audience match, the fail-closed paths and the
+launch-context claims. It covers **nothing** about the realm: flow composition, client scopes, the audience mapper's
 placement, PKCE, and every config key spelling are realm-side and belong to the distribution's
 `verify-realm-import.sh`. And no test in either repository establishes that a launch works;
 only a browser does.
