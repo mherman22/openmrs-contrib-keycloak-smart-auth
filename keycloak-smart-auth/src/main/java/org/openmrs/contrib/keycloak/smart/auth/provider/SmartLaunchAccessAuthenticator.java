@@ -160,11 +160,7 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 			return;
 		}
 
-		for (Map.Entry<String, Object> value : appToken.getOtherClaims().entrySet()) {
-			if (value.getValue() != null) {
-				authSession.setUserSessionNote(SMART_NOTE_PREFIX + value.getKey(), (String) value.getValue());
-			}
-		}
+		SmartLaunchAuthenticator.writeContextNotes(authSession, appToken.getOtherClaims());
 
 		UserModel user = context.getSession().users().getUserByUsername(context.getRealm(), username);
 		context.getAuthenticationSession().setAuthenticatedUser(user);

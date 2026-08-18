@@ -66,6 +66,15 @@ public class SmartLaunchAuthenticator implements Authenticator {
 
 	public static final String SMART_NOTE_PREFIX = "smart-oidc-note.";
 
+	/**
+	 * The context a launch can establish, and therefore the notes the claim mapper reads. Every one of
+	 * these is written on every launch -- blank when the launch did not establish it -- because the notes
+	 * live on the user session and outlive a single launch. Writing only what a launch carries left the
+	 * rest behind: a launch establishing a patient and no visit inherited the visit from the launch
+	 * before it, and the app was handed an encounter belonging to a different patient.
+	 */
+	static final List<String> CONTEXT_NOTES = Arrays.asList("patient", "visit");
+
 	public static final String DEFAULT_PATIENT_SELECTION_APP_URL = "http://localhost:8080/openmrs/smartonfhir/findPatient.page?app=smart.search&token={TOKEN}";
 
 	public static final String LAUNCH_SCOPE_PREFIX = "launch/";
@@ -206,14 +215,28 @@ public class SmartLaunchAuthenticator implements Authenticator {
 			return;
 		}
 
-		appToken.getOtherClaims()
-				.forEach((key, value) -> {
-					if (value instanceof String) {
-						authSession.setUserSessionNote(SMART_NOTE_PREFIX + key, (String) value);
-					}
-				});
+		writeContextNotes(authSession, appToken.getOtherClaims());
 
 		context.success();
+	}
+
+	/**
+	 * Writes the launch context onto the authentication session, so the claim mapper can put it in the
+	 * token response. Each of {@link #CONTEXT_NOTES} is always written, blank where this launch carries
+	 * no value for it, so nothing survives from a previous launch in the same session. Claims outside
+	 * that set are passed through unchanged.
+	 */
+	static void writeContextNotes(AuthenticationSessionModel authSession, Map<String, Object> claims) {
+		for (String note : CONTEXT_NOTES) {
+			Object value = claims.get(note);
+			authSession.setUserSessionNote(SMART_NOTE_PREFIX + note, value instanceof String ? (String) value : "");
+		}
+
+		claims.forEach((key, value) -> {
+			if (value instanceof String && !CONTEXT_NOTES.contains(key)) {
+				authSession.setUserSessionNote(SMART_NOTE_PREFIX + key, (String) value);
+			}
+		});
 	}
 
 	@Override
