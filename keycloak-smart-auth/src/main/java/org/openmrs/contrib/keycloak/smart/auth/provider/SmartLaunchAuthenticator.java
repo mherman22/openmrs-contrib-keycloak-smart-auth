@@ -73,7 +73,7 @@ public class SmartLaunchAuthenticator implements Authenticator {
 	 * rest behind: a launch establishing a patient and no visit inherited the visit from the launch
 	 * before it, and the app was handed an encounter belonging to a different patient.
 	 */
-	static final List<String> CONTEXT_NOTES = Arrays.asList("patient", "visit");
+	static final List<String> CONTEXT_NOTES = Arrays.asList("patient", "visit", "fhirUser");
 
 	public static final String DEFAULT_PATIENT_SELECTION_APP_URL = "http://localhost:8080/openmrs/smartonfhir/findPatient.page?app=smart.search&token={TOKEN}";
 

@@ -15,22 +15,41 @@ import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.ProtocolMapperUtils;
 import org.keycloak.protocol.oidc.mappers.AbstractOIDCProtocolMapper;
+import org.keycloak.protocol.oidc.mappers.OIDCAccessTokenMapper;
 import org.keycloak.protocol.oidc.mappers.OIDCAccessTokenResponseMapper;
+import org.keycloak.protocol.oidc.mappers.OIDCIDTokenMapper;
 import org.keycloak.protocol.oidc.mappers.OIDCAttributeMapperHelper;
 import org.keycloak.protocol.oidc.mappers.UserSessionNoteMapper;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.representations.AccessTokenResponse;
+import org.keycloak.representations.IDToken;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class SmartContextClaimMapper extends AbstractOIDCProtocolMapper implements OIDCAccessTokenResponseMapper {
+/**
+ * Puts SMART launch context where a client can read it.
+ * <p>
+ * All three token mappers are implemented, not only the response one. SMART says launch context belongs
+ * in the token response, and that is what an app reads -- but a resource server cannot see the response,
+ * only the access token, so a server that wants to know which patient a token was scoped to needs the
+ * claim there as well. The realm has always configured {@code access.token.claim = true} on these
+ * mappers; with only {@link OIDCAccessTokenResponseMapper} implemented that setting did nothing, and the
+ * access token carried no {@code patient} no matter how the realm was configured.
+ * <p>
+ * Implementing {@link OIDCIDTokenMapper} is what lets a {@code fhirUser} claim reach the id_token, which
+ * is where SMART says it goes: it tells an application which practitioner is using it.
+ */
+public class SmartContextClaimMapper extends AbstractOIDCProtocolMapper
+		implements OIDCAccessTokenResponseMapper, OIDCAccessTokenMapper, OIDCIDTokenMapper {
 
 	public static final String PROVIDER_ID = "smart-context-claim-mapper";
 
 	public static final String SMART_PATIENT_PARAMS = "smart-oidc-note.patient";
 
 	public static final String SMART_VISIT_PARAMS = "smart-oidc-note.visit";
+
+	public static final String SMART_FHIR_USER_PARAMS = "smart-oidc-note.fhirUser";
 
 	private static final List<ProviderConfigProperty> CONFIG_PROPERTIES = new ArrayList<>();
 
@@ -103,6 +122,27 @@ public class SmartContextClaimMapper extends AbstractOIDCProtocolMapper implemen
 
 	private static boolean isBlank(String value) {
 		return value == null || value.trim().isEmpty();
+	}
+
+	/**
+	 * The access-token and id-token path. Both reach this through {@code AbstractOIDCProtocolMapper}, so
+	 * one override serves them; which of the two a given mapper instance writes to is decided by
+	 * {@code access.token.claim} and {@code id.token.claim} in its realm configuration.
+	 * <p>
+	 * Blank is treated as absent for the same reason as in the token response: a launch that established
+	 * no context clears the note, and a claim holding an empty string is one a client cannot tell apart
+	 * from a real reference.
+	 */
+	@Override
+	protected void setClaim(IDToken token, ProtocolMapperModel mappingModel, UserSessionModel userSession,
+			KeycloakSession keycloakSession, ClientSessionContext clientSessionCtx) {
+		String noteName = mappingModel.getConfig().get(ProtocolMapperUtils.USER_SESSION_NOTE);
+
+		if (noteName == null || isBlank(userSession.getNote(noteName))) {
+			return;
+		}
+
+		OIDCAttributeMapperHelper.mapClaim(token, mappingModel, userSession.getNote(noteName));
 	}
 
 	@Override
