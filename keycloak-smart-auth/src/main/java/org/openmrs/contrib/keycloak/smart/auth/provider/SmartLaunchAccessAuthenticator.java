@@ -137,7 +137,14 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 		String appTokenString = context.getUriInfo().getQueryParameters().getFirst(QUERY_PARAM_APP_TOKEN);
 
 		if (StringUtils.isBlank(appTokenString)) {
-			authenticate(context);
+			// OpenMRS was asked to vouch and returned nothing, which it does when nobody is signed in
+			// there. That is not this authenticator's problem to solve twice: challenging again sends the
+			// browser straight back to the same endpoint, which answers the same way, and the launch spins
+			// between the two forever without ever showing a login form. Reported as attempted so the
+			// next alternative in the flow -- the cookie, then the password form -- gets its turn.
+			logger.debugf("No app token returned for realm %s; leaving the launch to the next authenticator",
+					context.getRealm().getName());
+			context.attempted();
 			return;
 		}
 
