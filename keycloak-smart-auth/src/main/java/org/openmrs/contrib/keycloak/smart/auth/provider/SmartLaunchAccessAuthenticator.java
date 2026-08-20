@@ -215,12 +215,7 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 					AuthenticationFlowError.INTERNAL_ERROR);
 		}
 
-		StringBuilder sb = new StringBuilder(usernameAudienceUrl.getProtocol()).append("://")
-				.append(usernameAudienceUrl.getHost());
-		if (usernameAudienceUrl.getPort() != usernameAudienceUrl.getDefaultPort()) {
-			sb.append(":").append(usernameAudienceUrl.getPort());
-		}
-		userToken.audience(sb.toString());
+		userToken.audience(SmartUserNameToken.audienceFor(usernameAudienceUrl));
 
 		KeyWrapper key = new KeyWrapper();
 		key.setAlgorithm(Algorithm.HS256);

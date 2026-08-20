@@ -12,6 +12,8 @@ package org.openmrs.contrib.keycloak.smart.auth.token;
 import org.keycloak.authentication.actiontoken.DefaultActionToken;
 import org.keycloak.representations.JsonWebToken;
 
+import java.net.URL;
+
 public class SmartUserNameToken extends JsonWebToken {
 
 	public static final String TOKEN_TYPE = "smart-username-token";
@@ -27,6 +29,26 @@ public class SmartUserNameToken extends JsonWebToken {
 		this.type = TOKEN_TYPE;
 		this.exp = absoluteExpirationInSecs;
 		this.otherClaims.put(DefaultActionToken.JSON_FIELD_AUTHENTICATION_SESSION_ID, authenticationSessionId);
+	}
+
+	/**
+	 * The origin of a URL, for use as this token's audience.
+	 * <p>
+	 * {@link URL#getPort()} answers {@code -1} when the URL states no port, and the obvious comparison
+	 * against {@link URL#getDefaultPort()} then holds -- {@code -1 != 80} -- so an address written
+	 * without a port produced an audience of {@code http://host:-1}. That is not a URL any recipient can
+	 * match, and because nothing here rejected it, the malformed value travelled in real tokens instead
+	 * of failing anywhere it would be noticed.
+	 */
+	public static String audienceFor(URL url) {
+		StringBuilder audience = new StringBuilder(url.getProtocol()).append("://").append(url.getHost());
+
+		int port = url.getPort();
+		if (port != -1 && port != url.getDefaultPort()) {
+			audience.append(":").append(port);
+		}
+
+		return audience.toString();
 	}
 
 	public SmartUserNameToken(long absoluteExpirationInSecs, String authenticationSessionId) {

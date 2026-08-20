@@ -261,8 +261,26 @@ public class SmartLaunchAuthenticator implements Authenticator {
 			String patientSelectionUrl) throws IOException {
 		// here we create a token indicating the user pre-authenticated with Keycloak
 		// this enables us to "login" as the user temporarily to select the appropriate patient
+		//
+		// Refused rather than minted when there is no name to put in it. A standalone launch reaches here
+		// only after the user has been authenticated, so a missing username means something upstream lost
+		// them -- and a token sent out without a subject fails much later and somewhere else, as an
+		// unexplained 401 from OpenMRS's AuthenticationByPassFilter, which is the wrong place to be
+		// reading about it. The sibling authenticator that carries an EHR launch omits the subject on
+		// purpose; this one has no reason to.
+		UserModel user = context.getUser();
+		String userName = user == null ? null : user.getUsername();
+
+		if (userName == null || userName.trim().isEmpty()) {
+			throw new AuthenticationFlowException(
+					"A standalone launch reached patient selection with no username for user "
+							+ (user == null ? "(none authenticated)" : user.getId())
+							+ "; refusing to issue a launch token OpenMRS cannot attribute",
+					AuthenticationFlowError.INTERNAL_ERROR);
+		}
+
 		SmartUserNameToken userToken = new SmartUserNameToken(
-				context.getUser().getUsername(),
+				userName,
 				absoluteExpirationInSecs,
 				clientId
 		);
@@ -279,12 +297,7 @@ public class SmartLaunchAuthenticator implements Authenticator {
 					AuthenticationFlowError.INTERNAL_ERROR);
 		}
 
-		StringBuilder sb = new StringBuilder(usernameAudienceUrl.getProtocol()).append("://")
-				.append(usernameAudienceUrl.getHost());
-		if (usernameAudienceUrl.getPort() != usernameAudienceUrl.getDefaultPort()) {
-			sb.append(":").append(usernameAudienceUrl.getPort());
-		}
-		userToken.audience(sb.toString());
+		userToken.audience(SmartUserNameToken.audienceFor(usernameAudienceUrl));
 
 		// sign the token with a shared secret so it can be verified by the client
 		KeyWrapper key = new KeyWrapper();
