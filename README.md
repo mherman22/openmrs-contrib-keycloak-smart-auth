@@ -88,37 +88,3 @@ private key — anything able to sign with it can assert any username to Keycloa
 Everything here fails closed, so a missing key or audience rejects every request rather than letting one
 through unchecked. Neither key has a default, deliberately: a default is a secret every deployment
 shares, and an authenticator with nothing configured refuses the launch instead.
-
-## Tests
-
-```bash
-mvn test
-```
-
-`ProviderContractTest` covers what the compiler cannot: that every authenticator is registered for
-Keycloak to discover, that provider ids fit the 36-character column Keycloak stores them in, and that the
-audience validator cannot be configured as `ALTERNATIVE` — an audience check a sibling execution can
-satisfy instead is not a check. The rest cover the validator's accept and reject matrix, both fail-closed
-secret paths, the context mapper, and launch scope extraction.
-
-**Not covered here, by design.** Everything realm-side: flow composition, whether the alternatives are
-reachable, client scopes, where the audience mapper is attached, PKCE, and every config key spelling.
-Those are checked by `realm/verify-realm-import.sh` in the distribution. Nor does anything in either
-repository establish that a launch works end to end — only a browser does. See [UPGRADING.md](UPGRADING.md).
-
-## The three repositories
-
-| | |
-|---|---|
-| [openmrs-module-smartonfhir](https://github.com/openmrs/openmrs-module-smartonfhir) | The OpenMRS module. Required. |
-| this repository | SMART's OAuth2 extensions for Keycloak. Required. |
-| [openmrs-contrib-keycloak-auth](https://github.com/openmrs/openmrs-contrib-keycloak-auth) | OpenMRS as Keycloak's user store, so clinicians use the password they already have. Optional. |
-
-This plugin and the user federation plugin share no code in either direction. The only link is that the
-module maps a token to a user by `preferred_username`, so whatever identity source a deployment uses,
-that claim must match a real OpenMRS username.
-
-## License
-
-[MPL 2.0 with Healthcare Disclaimer](LICENSE). Add the header to new files with
-`mvn com.mycila:license-maven-plugin:format`.
