@@ -34,9 +34,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * The SMART launch context reaches the app through the token response, so an omission here is not a
- * crash but an app that launches with no patient. These tests assert the claims that must appear and,
- * equally, that nothing appears when there is no context to report.
+ * An omission here is not a crash but an app that launches with no patient, so these assert both the
+ * claims that must appear and that nothing appears when there is no context.
  */
 @ExtendWith(MockitoExtension.class)
 public class SmartContextClaimMapperTest {
@@ -134,9 +133,8 @@ public class SmartContextClaimMapperTest {
 	}
 
 	/**
-	 * Keycloak 26 removed OIDCAttributeMapperHelper.splitClaimPath, and the hand-rolled loop that
-	 * built nested maps from a dotted claim name was replaced by mapClaim. This asserts the
-	 * replacement kept that nesting behaviour, which is the only reason the substitution was safe.
+	 * Keycloak 26 removed splitClaimPath, so mapClaim replaced it; this pins that dotted claim names
+	 * still nest.
 	 */
 	@Test
 	public void transformAccessTokenResponse_shouldNestADottedClaimName() {
@@ -157,8 +155,7 @@ public class SmartContextClaimMapperTest {
 
 		AccessTokenResponse result = transform(mapperModel(SmartContextClaimMapper.SMART_PATIENT_PARAMS, null));
 
-		// The dedicated patient claim is still set by transformAccessTokenResponse; what must not
-		// happen is a stray claim from the generic session-note path.
+		// transformAccessTokenResponse still sets patient; the generic path must add nothing.
 		assertEquals(PATIENT_UUID, result.getOtherClaims().get("patient"));
 		assertEquals(1, result.getOtherClaims().size(), "no additional claim should be invented without a claim name");
 	}

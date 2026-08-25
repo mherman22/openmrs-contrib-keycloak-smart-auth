@@ -28,17 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Puts SMART launch context where a client can read it.
- * <p>
- * All three token mappers are implemented, not only the response one. SMART says launch context belongs
- * in the token response, and that is what an app reads -- but a resource server cannot see the response,
- * only the access token, so a server that wants to know which patient a token was scoped to needs the
- * claim there as well. The realm has always configured {@code access.token.claim = true} on these
- * mappers; with only {@link OIDCAccessTokenResponseMapper} implemented that setting did nothing, and the
- * access token carried no {@code patient} no matter how the realm was configured.
- * <p>
- * Implementing {@link OIDCIDTokenMapper} is what lets a {@code fhirUser} claim reach the id_token, which
- * is where SMART says it goes: it tells an application which practitioner is using it.
+ * Puts SMART launch context where a client can read it. All three token mappers are implemented: apps
+ * read the response, resource servers see only the access token, {@code fhirUser} goes in the id_token.
  */
 public class SmartContextClaimMapper extends AbstractOIDCProtocolMapper
 		implements OIDCAccessTokenResponseMapper, OIDCAccessTokenMapper, OIDCIDTokenMapper {
@@ -97,9 +88,7 @@ public class SmartContextClaimMapper extends AbstractOIDCProtocolMapper
 		String patientUuid = userSession.getNote(SMART_PATIENT_PARAMS);
 		String visitUuid = userSession.getNote(SMART_VISIT_PARAMS);
 
-		// Blank means the launch established no such context, which is how the authenticator clears a
-		// note left by an earlier launch on the same session. Emitting it would hand the app an empty
-		// context reference, which is worse than none: a client cannot tell it apart from a real id.
+		// Blank means the launch established no such context; an empty reference is worse than none.
 		if (!isBlank(patientUuid)) {
 			token.getOtherClaims().put("patient", patientUuid);
 		}
@@ -107,10 +96,7 @@ public class SmartContextClaimMapper extends AbstractOIDCProtocolMapper
 			token.getOtherClaims().put("encounter", visitUuid);
 		}
 
-		// setClaim writes the configured note under the configured claim name, which is the same context
-		// by another route -- and it does not know that blank means absent, so on its own it emitted
-		// "encounter": "" once a launch had cleared the note. Skipped when the note this instance is
-		// configured to read holds nothing.
+		// setClaim does not know that blank means absent, so it is skipped when the note is empty.
 		String configuredNote = mappingModel.getConfig().get(ProtocolMapperUtils.USER_SESSION_NOTE);
 
 		if (configuredNote == null || !isBlank(userSession.getNote(configuredNote))) {
@@ -125,13 +111,8 @@ public class SmartContextClaimMapper extends AbstractOIDCProtocolMapper
 	}
 
 	/**
-	 * The access-token and id-token path. Both reach this through {@code AbstractOIDCProtocolMapper}, so
-	 * one override serves them; which of the two a given mapper instance writes to is decided by
-	 * {@code access.token.claim} and {@code id.token.claim} in its realm configuration.
-	 * <p>
-	 * Blank is treated as absent for the same reason as in the token response: a launch that established
-	 * no context clears the note, and a claim holding an empty string is one a client cannot tell apart
-	 * from a real reference.
+	 * The access-token and id-token path; the realm's {@code access.token.claim} and
+	 * {@code id.token.claim} decide which one an instance writes to. Blank is treated as absent.
 	 */
 	@Override
 	protected void setClaim(IDToken token, ProtocolMapperModel mappingModel, UserSessionModel userSession,
@@ -164,8 +145,7 @@ public class SmartContextClaimMapper extends AbstractOIDCProtocolMapper
 			return;
 		}
 
-		// Keycloak handles splitting the dotted claim path and building the nested
-		// maps itself; splitClaimPath was removed in favour of mapClaim.
+		// Keycloak splits the dotted claim path and builds the nested maps itself.
 		OIDCAttributeMapperHelper.mapClaim(token, mappingModel, attributeValue);
 	}
 }

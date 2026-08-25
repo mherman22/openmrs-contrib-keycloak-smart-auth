@@ -60,18 +60,15 @@ import static org.keycloak.OAuth2Constants.JWT;
 
 public class SmartLaunchAuthenticator implements Authenticator {
 
-	public static final String QUERY_PARAM_APP_TOKEN = "app-token";
+	public static final String QUERY_PARAM_APP_TOKEN = "app_token";
 
-	public static final String SMART_PATIENT_SELECTION = "smart-patient-selection";
+	public static final String SMART_PATIENT_SELECTION = "smart_patient_selection";
 
 	public static final String SMART_NOTE_PREFIX = "smart-oidc-note.";
 
 	/**
-	 * The context a launch can establish, and therefore the notes the claim mapper reads. Every one of
-	 * these is written on every launch -- blank when the launch did not establish it -- because the notes
-	 * live on the user session and outlive a single launch. Writing only what a launch carries left the
-	 * rest behind: a launch establishing a patient and no visit inherited the visit from the launch
-	 * before it, and the app was handed an encounter belonging to a different patient.
+	 * The context a launch can establish. All of these are written on every launch, blank included,
+	 * because the notes outlive one launch and a stale visit would belong to another patient.
 	 */
 	static final List<String> CONTEXT_NOTES = Arrays.asList("patient", "visit", "fhirUser");
 
@@ -221,10 +218,8 @@ public class SmartLaunchAuthenticator implements Authenticator {
 	}
 
 	/**
-	 * Writes the launch context onto the authentication session, so the claim mapper can put it in the
-	 * token response. Each of {@link #CONTEXT_NOTES} is always written, blank where this launch carries
-	 * no value for it, so nothing survives from a previous launch in the same session. Claims outside
-	 * that set are passed through unchanged.
+	 * Writes the launch context onto the authentication session for the claim mapper. Every
+	 * {@link #CONTEXT_NOTES} entry is written, so nothing survives from a previous launch.
 	 */
 	static void writeContextNotes(AuthenticationSessionModel authSession, Map<String, Object> claims) {
 		for (String note : CONTEXT_NOTES) {
@@ -259,15 +254,7 @@ public class SmartLaunchAuthenticator implements Authenticator {
 
 	private String buildUserNameToken(AuthenticationFlowContext context, int absoluteExpirationInSecs, String clientId,
 			String patientSelectionUrl) throws IOException {
-		// here we create a token indicating the user pre-authenticated with Keycloak
-		// this enables us to "login" as the user temporarily to select the appropriate patient
-		//
-		// Refused rather than minted when there is no name to put in it. A standalone launch reaches here
-		// only after the user has been authenticated, so a missing username means something upstream lost
-		// them -- and a token sent out without a subject fails much later and somewhere else, as an
-		// unexplained 401 from OpenMRS's AuthenticationByPassFilter, which is the wrong place to be
-		// reading about it. The sibling authenticator that carries an EHR launch omits the subject on
-		// purpose; this one has no reason to.
+		// Says the user pre-authenticated with Keycloak, so OpenMRS can sign them in to pick a patient.
 		UserModel user = context.getUser();
 		String userName = user == null ? null : user.getUsername();
 
@@ -316,13 +303,8 @@ public class SmartLaunchAuthenticator implements Authenticator {
 	}
 
 	/**
-	 * The shared secret that signs the token sent to OpenMRS and verifies the one it returns. Fails
-	 * closed when unconfigured, as {@link SmartAudienceValidator} does and for the same reason:
-	 * anything able to sign with this key can assert a username and a launch context to Keycloak
-	 * without a password, so an unconfigured deployment must reject the launch rather than fall back
-	 * to a key an attacker also knows. There is deliberately no default.
-	 * <p>
-	 * Package-private so the fail-closed path can be tested.
+	 * The shared secret signing the token sent to OpenMRS and verifying the one it returns. No default:
+	 * anything able to sign with it can assert any username to Keycloak without a password.
 	 */
 	SecretKeySpec getSecretKey(AuthenticatorConfigModel authenticatorConfig, String realmName) throws IOException {
 		String secretKey = null;

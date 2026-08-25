@@ -43,9 +43,8 @@ import org.openmrs.contrib.keycloak.smart.auth.provider.AlternativeUsernamePassw
 public class ProviderContractTest {
 
 	/**
-	 * Keycloak stores an execution's authenticator id in AUTHENTICATION_EXECUTION.AUTHENTICATOR, a
-	 * VARCHAR(36). A longer id compiles, registers, and then fails realm import with "Value too long
-	 * for column".
+	 * AUTHENTICATION_EXECUTION.AUTHENTICATOR is a VARCHAR(36); a longer id compiles and registers, then
+	 * fails realm import.
 	 */
 	private static final int MAX_AUTHENTICATOR_ID_LENGTH = 36;
 
@@ -76,8 +75,7 @@ public class ProviderContractTest {
 	public void factories_shouldRegisterEveryAuthenticatorForDiscovery() throws Exception {
 		List<String> declared = declaredFactoryClassNames();
 
-		// Guards against adding a factory class and forgetting the services entry, which fails
-		// silently: the provider simply never appears in Keycloak.
+		// A factory with no services entry fails silently: it never appears in Keycloak.
 		assertTrue(declared.contains(AlternativeUsernamePasswordFormFactory.class.getName()));
 		assertTrue(declared.stream().anyMatch(n -> n.endsWith("SmartAudienceValidatorFactory")),
 				"the audience validator must be registered or SMART's aud requirement goes unenforced");
@@ -115,9 +113,8 @@ public class ProviderContractTest {
 	}
 
 	/**
-	 * The regression that prompted this test. Inheriting getId() from the built-in factory registered
-	 * our subclass as auth-username-password-form, replacing the stock login form for every realm in
-	 * the instance -- and invisibly, since the display name was inherited too.
+	 * Inheriting getId() registered this as auth-username-password-form, replacing the stock login form
+	 * for every realm in the instance, and invisibly, since the display name was inherited too.
 	 */
 	@Test
 	public void getId_shouldNotShadowKeycloaksBuiltInLoginForm() {

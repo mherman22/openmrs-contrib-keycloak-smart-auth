@@ -13,22 +13,12 @@ import org.keycloak.authentication.authenticators.browser.UsernamePasswordFormFa
 import org.keycloak.models.AuthenticationExecutionModel;
 
 /**
- * Keycloak's built-in username/password form only offers REQUIRED, which cannot be combined with the
- * SMART authenticators in an alternative sub-flow. This subclass widens the requirement choices and
- * changes nothing else.
- * <p>
- * It deliberately declares its own provider id rather than inheriting
- * {@code auth-username-password-form} from the superclass. Sharing the built-in id would silently
- * replace the stock form for every realm in the instance, since Keycloak keys authenticators by id
- * and {@code DefaultAuthenticationFlows} wires the built-in id into the browser, direct-grant and
- * reset-credentials flows. With a distinct id those flows keep the built-in, and only flows that ask
- * for this authenticator get it.
+ * Widens the built-in username/password form's REQUIRED-only choices so it can join an alternative
+ * sub-flow. Its own provider id, since sharing the built-in one would replace the stock form.
  */
 public class AlternativeUsernamePasswordFormFactory extends UsernamePasswordFormFactory {
 
-	// Must stay within 36 characters: Keycloak stores this in
-	// AUTHENTICATION_EXECUTION.AUTHENTICATOR, which is VARCHAR(36), and a longer id
-	// fails realm import with "Value too long for column".
+	// At most 36 characters: AUTHENTICATION_EXECUTION.AUTHENTICATOR is VARCHAR(36).
 	public static final String PROVIDER_ID = "smart-username-password-form";
 
 	private static final AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {

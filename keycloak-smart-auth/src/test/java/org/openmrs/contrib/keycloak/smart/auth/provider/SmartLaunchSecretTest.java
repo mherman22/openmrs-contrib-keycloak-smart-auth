@@ -30,14 +30,8 @@ import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.provider.ProviderConfigProperty;
 
 /**
- * The shared secret authenticates the app token that establishes launch context and, on an EHR launch,
- * the clinician's identity: {@code SmartLaunchAccessAuthenticator.action} takes the token's subject as
- * the signed-in user and no password is presented anywhere in that flow. Anything able to sign with the
- * key can therefore assert any username, so an unconfigured deployment must reject the launch rather
- * than fall back to a key an attacker also knows.
- * <p>
- * These are the tests for that, in both directions: the authenticators refuse a blank key, and the
- * factories offer no default that would make one look configured.
+ * Anything able to sign with the shared secret can assert any username, so the authenticators refuse a
+ * blank key and the factories offer no default that would make one look configured.
  */
 public class SmartLaunchSecretTest {
 
@@ -132,9 +126,8 @@ public class SmartLaunchSecretTest {
 	}
 
 	/**
-	 * A default of {@code ""} is what this used to ship. It reads as a configured value in the admin
-	 * console and in a realm export, while being a key every deployment shares, so the launch context
-	 * and the username the app token asserts could be forged by anyone who read the source.
+	 * A default of {@code ""} reads as configured in the admin console while being a key every
+	 * deployment shares.
 	 */
 	@Nested
 	public class Defaults {

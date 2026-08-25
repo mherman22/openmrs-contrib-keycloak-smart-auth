@@ -25,10 +25,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * The launch types derived here are handed to OpenMRS as the {@code launchType} claim and decide which
- * picker the user is shown. The value used to carry a leading slash, because the prefix is seven
- * characters and the code cut six; OpenMRS matched it with {@code contains}, so the defect was
- * invisible from either end.
+ * These launch types go to OpenMRS as the {@code launchType} claim and decide which picker is shown.
+ * An off-by-one once left a leading slash on the value, which {@code contains} matching hid.
  */
 public class SmartLaunchAuthenticatorScopeTest {
 

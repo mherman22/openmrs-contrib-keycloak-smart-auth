@@ -32,13 +32,8 @@ public class SmartUserNameToken extends JsonWebToken {
 	}
 
 	/**
-	 * The origin of a URL, for use as this token's audience.
-	 * <p>
-	 * {@link URL#getPort()} answers {@code -1} when the URL states no port, and the obvious comparison
-	 * against {@link URL#getDefaultPort()} then holds -- {@code -1 != 80} -- so an address written
-	 * without a port produced an audience of {@code http://host:-1}. That is not a URL any recipient can
-	 * match, and because nothing here rejected it, the malformed value travelled in real tokens instead
-	 * of failing anywhere it would be noticed.
+	 * The origin of a URL, for use as this token's audience. {@link URL#getPort()} answers {@code -1}
+	 * when no port is stated, which must not become an audience of {@code http://host:-1}.
 	 */
 	public static String audienceFor(URL url) {
 		StringBuilder audience = new StringBuilder(url.getProtocol()).append("://").append(url.getHost());

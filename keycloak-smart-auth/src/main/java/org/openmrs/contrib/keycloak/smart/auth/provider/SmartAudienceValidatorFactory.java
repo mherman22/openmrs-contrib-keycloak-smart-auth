@@ -24,14 +24,10 @@ import org.keycloak.provider.ProviderConfigProperty;
 
 public class SmartAudienceValidatorFactory implements AuthenticatorFactory {
 
-	/**
-	 * Must stay within 36 characters: Keycloak stores this in
-	 * AUTHENTICATION_EXECUTION.AUTHENTICATOR, which is VARCHAR(36), and a longer id fails realm
-	 * import with "Value too long for column".
-	 */
+	/** At most 36 characters: AUTHENTICATION_EXECUTION.AUTHENTICATOR is VARCHAR(36). */
 	public static final String ID = "smart-audience-validator";
 
-	public static final String CONFIG_ALLOWED_AUDIENCES = "smart-allowed-audiences";
+	public static final String CONFIG_ALLOWED_AUDIENCES = "smart_allowed_audiences";
 
 	private static final AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {
 			AuthenticationExecutionModel.Requirement.REQUIRED,
@@ -57,8 +53,7 @@ public class SmartAudienceValidatorFactory implements AuthenticatorFactory {
 
 	@Override
 	public AuthenticationExecutionModel.Requirement[] getRequirementChoices() {
-		// ALTERNATIVE is deliberately absent. An audience check that can be bypassed by another
-		// alternative execution succeeding is not a check at all.
+		// ALTERNATIVE is absent: a check another execution can bypass is not a check.
 		return REQUIREMENT_CHOICES;
 	}
 

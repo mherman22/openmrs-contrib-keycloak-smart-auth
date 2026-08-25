@@ -27,20 +27,8 @@ import org.keycloak.services.messages.Messages;
 import org.keycloak.sessions.AuthenticationSessionModel;
 
 /**
- * Validates the {@code aud} parameter that SMART App Launch 2.x requires an app to send to the
- * authorization endpoint, naming the FHIR server it intends to call.
- * <p>
- * Without this check an access token minted for one FHIR server can be replayed against another that
- * trusts the same realm, which is the attack the requirement exists to prevent. Keycloak has no
- * built-in equivalent.
- * <p>
- * Matching is deliberately strict: the presented value must equal one of the configured audiences
- * exactly, after trimming whitespace and ignoring a single trailing slash. Prefix and substring
- * matching are <em>not</em> used, since an audience of {@code https://ehr/fhir} must not accept
- * {@code https://ehr/fhirEvil} or {@code https://evil/?a=https://ehr/fhir}.
- * <p>
- * The authenticator fails closed. A missing configuration rejects every request rather than allowing
- * them through unvalidated.
+ * Validates the {@code aud} SMART App Launch 2.x requires, so a token minted for one FHIR server is
+ * not replayable against another trusting the same realm. Exact matching; unconfigured rejects all.
  */
 public class SmartAudienceValidator implements Authenticator {
 
@@ -53,9 +41,8 @@ public class SmartAudienceValidator implements Authenticator {
 	public static final String CLIENT_REQUEST_PARAM_PREFIX = "client_request_param_";
 
 	/**
-	 * {@code aud} is what SMART App Launch specifies. {@code resource} and {@code audience} are
-	 * accepted as fallbacks because they are the equivalent parameters in RFC 8707 and in some
-	 * OAuth 2 deployments, and real SMART clients have been observed sending them.
+	 * {@code aud} is what SMART specifies; {@code resource} and {@code audience} are the RFC 8707
+	 * equivalents, which real clients have been seen sending.
 	 */
 	static final List<String> AUDIENCE_PARAMS = Arrays.asList("aud", "resource", "audience");
 
@@ -132,10 +119,8 @@ public class SmartAudienceValidator implements Authenticator {
 	}
 
 	/**
-	 * Trims surrounding whitespace and removes a single trailing slash, so that a FHIR base is
-	 * treated the same whether or not it was written with one. Comparison is otherwise exact,
-	 * including case: normalising case here would mean accepting audiences that differ from the
-	 * configured value in ways the operator did not sanction.
+	 * Trims whitespace and one trailing slash, so a FHIR base matches however it was written.
+	 * Otherwise exact, including case.
 	 */
 	private String normalize(String audience) {
 		if (StringUtils.isBlank(audience)) {
@@ -147,8 +132,7 @@ public class SmartAudienceValidator implements Authenticator {
 	}
 
 	private void reject(AuthenticationFlowContext context, String reason) {
-		// Logged rather than reported through EventBuilder.error, which expects an Errors constant
-		// and fires the event itself.
+		// Logged rather than EventBuilder.error, which expects an Errors constant and fires itself.
 		logger.warnf("Rejecting SMART authorization request: %s", reason);
 		context.failure(AuthenticationFlowError.INVALID_CLIENT_CREDENTIALS,
 				context.form().setError(Messages.INVALID_REQUEST).createErrorPage(Response.Status.BAD_REQUEST));

@@ -44,29 +44,29 @@ checks through the admin API that everything landed.
 
 ## Configuration
 
-Configuration is per authenticator, in the realm: `smart-allowed-audiences`,
-`smart-launch-access-url`, `smart-launch-access-secret-key`, `smart-patient-selection-url`,
-`smart-launch-secret-key`, `smart-launch-supported-params`.
+Configuration is per authenticator, in the realm: `smart_allowed_audiences`,
+`smart_launch_access_url`, `smart_launch_access_secret_key`, `smart_patient_selection_url`,
+`smart_launch_secret_key`, `smart_launch_supported_params`.
 
 ```json
 "authenticatorConfig": [
   {
     "alias": "smart-audience-config",
-    "config": { "smart-allowed-audiences": "https://openmrs.example.org/openmrs/ws/fhir2/R4" }
+    "config": { "smart_allowed_audiences": "https://openmrs.example.org/openmrs/ws/fhir2/R4" }
   },
   {
     "alias": "smart-access-config",
     "config": {
-      "smart-launch-access-url": "https://openmrs.example.org/openmrs/smartonfhir/smartAccessConfirmation?token={TOKEN}&launch={launchUuid}",
-      "smart-launch-access-secret-key": "<base64 secret, shared with the module>"
+      "smart_launch_access_url": "https://openmrs.example.org/openmrs/smartonfhir/smartAccessConfirmation?token={TOKEN}&launch={launchUuid}",
+      "smart_launch_access_secret_key": "<base64 secret, shared with the module>"
     }
   },
   {
     "alias": "smart-launch-config",
     "config": {
-      "smart-patient-selection-url": "https://openmrs.example.org/openmrs/ms/smartPatientSelection?token={TOKEN}",
-      "smart-launch-secret-key": "<the same secret>",
-      "smart-launch-supported-params": "patient encounter"
+      "smart_patient_selection_url": "https://openmrs.example.org/openmrs/ms/smartPatientSelection?token={TOKEN}",
+      "smart_launch_secret_key": "<the same secret>",
+      "smart_launch_supported_params": "patient encounter"
     }
   }
 ]
@@ -76,12 +76,12 @@ An execution refers to a block by its alias.
 
 | Key | |
 |---|---|
-| `smart-allowed-audiences` | FHIR bases an app may name in `aud`. Several, separated by whitespace or commas; matched exactly after trimming one trailing slash, so `https://ehr/fhir` will not accept `https://ehr/fhirEvil`. |
-| `smart-launch-access-url` | Where an EHR launch sends the browser so OpenMRS can identify the clinician already signed in there. `{TOKEN}` and `{launchUuid}` are substituted. |
-| `smart-launch-access-secret-key` | Signs the token sent to OpenMRS and verifies the one it returns. Both directions, one key. |
-| `smart-patient-selection-url` | Where a standalone launch sends the clinician to choose a patient. `{TOKEN}` is substituted. |
-| `smart-launch-secret-key` | Signs the token that carries that choice back. The same shared secret. |
-| `smart-launch-supported-params` | Which `launch/*` context types this deployment can establish, space separated. A launch asking for anything else is passed over rather than half-served. |
+| `smart_allowed_audiences` | FHIR bases an app may name in `aud`. Several, separated by whitespace or commas; matched exactly after trimming one trailing slash, so `https://ehr/fhir` will not accept `https://ehr/fhirEvil`. |
+| `smart_launch_access_url` | Where an EHR launch sends the browser so OpenMRS can identify the clinician already signed in there. `{TOKEN}` and `{launchUuid}` are substituted. |
+| `smart_launch_access_secret_key` | Signs the token sent to OpenMRS and verifies the one it returns. Both directions, one key. |
+| `smart_patient_selection_url` | Where a standalone launch sends the clinician to choose a patient. `{TOKEN}` is substituted. |
+| `smart_launch_secret_key` | Signs the token that carries that choice back. The same shared secret. |
+| `smart_launch_supported_params` | Which `launch/*` context types this deployment can establish, space separated. A launch asking for anything else is passed over rather than half-served. |
 
 Both secret keys hold the same value the OpenMRS module reads from its own configuration. Treat it as a
 private key — anything able to sign with it can assert any username to Keycloak without a password.

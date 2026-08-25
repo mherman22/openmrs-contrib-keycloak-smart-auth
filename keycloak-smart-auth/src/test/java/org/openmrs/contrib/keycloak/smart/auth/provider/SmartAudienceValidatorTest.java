@@ -41,9 +41,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * The audience check is the only thing standing between a token minted for one FHIR server and its
- * replay against another that trusts the same realm, so these tests care as much about what it
- * rejects as about what it accepts.
+ * The audience check is all that stops a token minted for one FHIR server being replayed against
+ * another trusting the same realm, so what it rejects matters as much as what it accepts.
  */
 @ExtendWith(MockitoExtension.class)
 public class SmartAudienceValidatorTest {
@@ -70,13 +69,11 @@ public class SmartAudienceValidatorTest {
 		lenient().when(context.getAuthenticationSession()).thenReturn(authSession);
 		lenient().when(authSession.getClientNote(anyString())).thenAnswer(inv -> clientNotes.get(inv.getArgument(0)));
 
-		// The error path renders a form; stub it loosely so failures are attributable to the
-		// decision under test rather than to an unstubbed call.
+		// The error path renders a form; stubbed loosely so failures point at the decision under test.
 		LoginFormsProvider forms = mock(LoginFormsProvider.class);
 		lenient().when(context.form()).thenReturn(forms);
 		lenient().when(forms.setError(anyString())).thenReturn(forms);
-		// Mocked rather than built: Response.status() needs a JAX-RS RuntimeDelegate, and only the
-		// jakarta.ws.rs API is on the test classpath.
+		// Mocked, since Response.status() needs a RuntimeDelegate and only the API is on the classpath.
 		lenient().when(forms.createErrorPage(any())).thenReturn(mock(Response.class));
 	}
 
@@ -293,11 +290,7 @@ public class SmartAudienceValidatorTest {
 			assertRejected();
 		}
 
-		/**
-		 * An unconfigured validator must not accept an empty audience just because both sides are
-		 * blank. Rejecting for the wrong reason is still the right outcome here, but this pins that
-		 * the empty-vs-empty case is not treated as a match.
-		 */
+		/** An unconfigured validator must not treat empty-versus-empty as a match. */
 		@Test
 		public void authenticate_shouldFailClosedWhenBothConfigAndAudienceAreBlank() {
 			configureAllowed("");

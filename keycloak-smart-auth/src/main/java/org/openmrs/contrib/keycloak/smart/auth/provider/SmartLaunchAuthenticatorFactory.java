@@ -31,11 +31,11 @@ public class SmartLaunchAuthenticatorFactory implements AuthenticatorFactory {
 			AuthenticationExecutionModel.Requirement.DISABLED
 	};
 
-	public static final String CONFIG_SMART_PATIENT_SELECTION_URL = "smart-patient-selection-url";
+	public static final String CONFIG_SMART_PATIENT_SELECTION_URL = "smart_patient_selection_url";
 
-	public static final String CONFIG_EXTERNAL_SMART_LAUNCH_SECRET_KEY = "smart-launch-secret-key";
+	public static final String CONFIG_EXTERNAL_SMART_LAUNCH_SECRET_KEY = "smart_launch_secret_key";
 
-	public static final String CONFIG_EXTERNAL_SMART_LAUNCH_SUPPORTED_PARAMS = "smart-launch-supported-params";
+	public static final String CONFIG_EXTERNAL_SMART_LAUNCH_SUPPORTED_PARAMS = "smart_launch_supported_params";
 
 	public static final String ID = "smart-application-authenticator";
 
@@ -78,8 +78,7 @@ public class SmartLaunchAuthenticatorFactory implements AuthenticatorFactory {
 				"URL of the application to redirect to. It has to contain token position marked with \"{TOKEN}\" (without quotes).",
 				STRING_TYPE, SmartLaunchAuthenticator.DEFAULT_PATIENT_SELECTION_APP_URL);
 
-		// No default value: an empty default advertises "" as a usable key, and this authenticator
-		// rejects the launch rather than sign with one. See SmartLaunchAuthenticator#getSecretKey.
+		// No default: "" would advertise itself as a usable key.
 		ProviderConfigProperty smartLaunchKey = new ProviderConfigProperty(CONFIG_EXTERNAL_SMART_LAUNCH_SECRET_KEY,
 				"External SMART Launch Secret Key",
 				"Base64-encoded HmacSHA256 secret key shared with the OpenMRS SMART on FHIR module. Required: an unconfigured authenticator rejects every launch.",

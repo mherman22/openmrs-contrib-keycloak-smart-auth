@@ -26,8 +26,7 @@ class SmartUserNameTokenTest {
 	@Test
 	@DisplayName("an address written without a port keeps its default, rather than becoming :-1")
 	void omitsAnUnstatedPort() throws Exception {
-		// URL.getPort() answers -1 here, and -1 != 80, so the obvious comparison against getDefaultPort()
-		// appended it. Tokens went out with an audience of http://localhost:-1, which nothing can match.
+		// URL.getPort() answers -1 here, which must not be appended as http://localhost:-1.
 		assertEquals("http://localhost", audienceOf("http://localhost/openmrs/ms/smartPatientSelection"));
 		assertEquals("https://ehr.example.org", audienceOf("https://ehr.example.org/openmrs/ms/smartPatientSelection"));
 	}

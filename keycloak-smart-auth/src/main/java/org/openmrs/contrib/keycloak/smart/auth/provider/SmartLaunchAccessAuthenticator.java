@@ -52,24 +52,17 @@ import static org.openmrs.contrib.keycloak.smart.auth.provider.SmartLaunchAuthen
 
 public class SmartLaunchAccessAuthenticator implements Authenticator {
 
-	public static final String QUERY_PARAM_APP_TOKEN = "app-token";
+	public static final String QUERY_PARAM_APP_TOKEN = "app_token";
 
-	public static final String SMART_ACCESS = "smart-access";
+	public static final String SMART_ACCESS = "smart_access";
 
 	public static final String DEFAULT_PATIENT_ACCESS_URL = "http://localhost:8080/openmrs/smartonfhir/smartAccessConfirmation?token={TOKEN}&launch={launchUuid}";
 
 	private static final Logger logger = Logger.getLogger(SmartLaunchAccessAuthenticator.class);
 
 	/**
-	 * Hands the browser to OpenMRS so that the EHR can say who is signed in, and comes back into this
-	 * same execution with the answer.
-	 * <p>
-	 * This deliberately does not use a Keycloak action token. An EHR launch has nobody authenticated
-	 * yet, and the action-token endpoint requires the token to name a user. Naming the literal username
-	 * {@code admin} to satisfy it fails on a stock OpenMRS database, where the administrator's
-	 * {@code username} column is NULL and {@code admin} is its {@code system_id}, so every EHR launch
-	 * died at the authorization endpoint. The execution's own action URL is bound to the authentication
-	 * session and needs no user.
+	 * Hands the browser to OpenMRS to say who is signed in, returning to this same execution. Not a
+	 * Keycloak action token: those name a user, and an EHR launch has nobody authenticated yet.
 	 */
 	@Override
 	public void authenticate(AuthenticationFlowContext context) {
@@ -137,11 +130,7 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 		String appTokenString = context.getUriInfo().getQueryParameters().getFirst(QUERY_PARAM_APP_TOKEN);
 
 		if (StringUtils.isBlank(appTokenString)) {
-			// OpenMRS was asked to vouch and returned nothing, which it does when nobody is signed in
-			// there. That is not this authenticator's problem to solve twice: challenging again sends the
-			// browser straight back to the same endpoint, which answers the same way, and the launch spins
-			// between the two forever without ever showing a login form. Reported as attempted so the
-			// next alternative in the flow -- the cookie, then the password form -- gets its turn.
+			// Nobody is signed in to OpenMRS; reported as attempted so the next alternative runs.
 			logger.debugf("No app token returned for realm %s; leaving the launch to the next authenticator",
 					context.getRealm().getName());
 			context.attempted();
@@ -226,14 +215,8 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 	}
 
 	/**
-	 * The shared secret that signs the token sent to OpenMRS and verifies the one it returns. On this
-	 * authenticator that returned token <em>is</em> the authentication: {@link #action} takes its
-	 * subject as the signed-in clinician and no password is ever presented. Fails closed when
-	 * unconfigured, as {@link SmartAudienceValidator} does and for the same reason: an empty or
-	 * defaulted key is one an attacker also knows, and would let anyone forge the EHR launch. There is
-	 * deliberately no default.
-	 * <p>
-	 * Package-private so the fail-closed path can be tested.
+	 * The shared secret signing the token sent to OpenMRS and verifying the one it returns, which is
+	 * itself the authentication here. No default: a key an attacker also knows would forge any launch.
 	 */
 	SecretKeySpec getSecretKey(AuthenticatorConfigModel authenticatorConfig, String realmName) throws
 			IOException {
