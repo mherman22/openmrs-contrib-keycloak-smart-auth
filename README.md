@@ -78,7 +78,7 @@ An execution refers to a block by its alias.
 |---|---|
 | `smart_allowed_audiences` | FHIR bases an app may name in `aud`. Several, separated by whitespace or commas; matched exactly after trimming one trailing slash, so `https://ehr/fhir` will not accept `https://ehr/fhirEvil`. |
 | `smart_launch_access_url` | Where an EHR launch sends the browser so OpenMRS can identify the clinician already signed in there. `{TOKEN}` and `{launchUuid}` are substituted. |
-| `smart_launch_access_secret_key` | Signs the token sent to OpenMRS and verifies the one it returns. Both directions, one key. |
+| `smart_launch_access_secret_key` | Verifies the signed token OpenMRS returns naming the clinician. The EHR path signs nothing itself: it hands the browser a return URL, not a token. |
 | `smart_patient_selection_url` | Where a standalone launch sends the clinician to choose a patient. `{TOKEN}` is substituted. |
 | `smart_launch_secret_key` | Signs the token that carries that choice back. The same shared secret. |
 | `smart_launch_supported_params` | Which `launch/*` context types this deployment can establish, space separated. A launch asking for anything else is passed over rather than half-served. |

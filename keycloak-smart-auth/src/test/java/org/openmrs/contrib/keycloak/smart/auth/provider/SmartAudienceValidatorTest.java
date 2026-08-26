@@ -89,6 +89,14 @@ public class SmartAudienceValidatorTest {
 		clientNotes.put(SmartAudienceValidator.CLIENT_REQUEST_PARAM_PREFIX + param, value);
 	}
 
+	/**
+	 * The shape a parameter Keycloak recognises actually arrives in: a plain client note under the
+	 * parameter's own name, with no prefix. {@code resource} is such a parameter.
+	 */
+	private void presentPlain(String param, String value) {
+		clientNotes.put(param, value);
+	}
+
 	/** Asserts the request was rejected, and that it was rejected rather than merely not accepted. */
 	private void assertRejected() {
 		verify(context, never()).success();
@@ -170,6 +178,43 @@ public class SmartAudienceValidatorTest {
 			configureAllowed(FHIR_BASE);
 			present("aud", FHIR_BASE);
 			present("resource", OTHER_FHIR_BASE);
+
+			validator.authenticate(context);
+
+			assertAccepted();
+		}
+
+		/**
+		 * {@code resource} is a parameter Keycloak recognises, so it is never copied into a prefixed
+		 * note: it is stored as a plain client note under its own name. Reading only the prefixed
+		 * spelling rejected every client that sent {@code resource} and no {@code aud}.
+		 */
+		@Test
+		public void authenticate_shouldAcceptResourceArrivingAsAPlainClientNote() {
+			configureAllowed(FHIR_BASE);
+			presentPlain("resource", FHIR_BASE);
+
+			validator.authenticate(context);
+
+			assertAccepted();
+		}
+
+		@Test
+		public void authenticate_shouldPreferAudOverAPlainResourceNote() {
+			configureAllowed(FHIR_BASE);
+			present("aud", FHIR_BASE);
+			presentPlain("resource", OTHER_FHIR_BASE);
+
+			validator.authenticate(context);
+
+			assertAccepted();
+		}
+
+		@ValueSource(strings = { "aud", "resource", "audience" })
+		@ParameterizedTest(name = "a plain {0} note is read")
+		public void authenticate_shouldReadEveryAudienceParameterFromAPlainNoteToo(String param) {
+			configureAllowed(FHIR_BASE);
+			presentPlain(param, FHIR_BASE);
 
 			validator.authenticate(context);
 

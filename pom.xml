@@ -13,15 +13,15 @@
     
     <repositories>
         <repository>
+            <id>openmrs-repo</id>
+            <name>OpenMRS Nexus Repository</name>
+            <url>https://mavenrepo.openmrs.org/nexus/content/repositories/public</url>
+        </repository>
+        <repository>
             <id>central</id>
             <name>Maven Repository Switchboard</name>
             <layout>default</layout>
             <url>https://repo1.maven.org/maven2</url>
-        </repository>
-        <repository>
-            <id>openmrs-repo</id>
-            <name>OpenMRS Nexus Repository</name>
-            <url>https://mavenrepo.openmrs.org/nexus/content/repositories/public</url>
         </repository>
     </repositories>
     <pluginRepositories>
@@ -244,7 +244,7 @@
         <keycloak.version>26.7.1</keycloak.version>
         <junit.version>5.11.4</junit.version>
         <mockito.version>5.14.2</mockito.version>
-        <openmrsPlatformVersion>2.8.8</openmrsPlatformVersion>
+        <openmrsPlatformVersion>2.4.0</openmrsPlatformVersion>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.build.outputEncoding>UTF-8</project.build.outputEncoding>

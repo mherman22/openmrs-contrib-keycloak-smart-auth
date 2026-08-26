@@ -35,8 +35,9 @@ public class SmartAudienceValidator implements Authenticator {
 	private static final Logger logger = Logger.getLogger(SmartAudienceValidator.class);
 
 	/**
-	 * Keycloak copies unrecognised authorization-endpoint query parameters into client notes under
-	 * this prefix.
+	 * Keycloak copies authorization-endpoint query parameters it does not recognise into client notes
+	 * under this prefix. Ones it does recognise are stored as a plain note under the parameter's own
+	 * name instead, so both spellings have to be read.
 	 */
 	public static final String CLIENT_REQUEST_PARAM_PREFIX = "client_request_param_";
 
@@ -73,7 +74,9 @@ public class SmartAudienceValidator implements Authenticator {
 
 	/**
 	 * Reads the audience the client presented, preferring {@code aud} and falling back to the
-	 * recognised aliases in order.
+	 * recognised aliases in order. Both note spellings are read for each: {@code aud} and
+	 * {@code audience} are unknown to Keycloak and arrive prefixed, while {@code resource} is one of
+	 * its own parameters and arrives as a plain note under that name.
 	 */
 	private String presentedAudience(AuthenticationSessionModel authSession) {
 		if (authSession == null) {
@@ -82,6 +85,11 @@ public class SmartAudienceValidator implements Authenticator {
 
 		for (String param : AUDIENCE_PARAMS) {
 			String value = authSession.getClientNote(CLIENT_REQUEST_PARAM_PREFIX + param);
+
+			if (StringUtils.isBlank(value)) {
+				value = authSession.getClientNote(param);
+			}
+
 			if (StringUtils.isNotBlank(value)) {
 				return value;
 			}

@@ -121,19 +121,22 @@ changes a key name breaks them silently on this side.
 
 ### 5. Action tokens
 
-`SmartPatientSelectionActionTokenHandler` and `SmartLaunchAccessActionTokenHandler` extend
-`AbstractActionTokenHandler`, their tokens extend `DefaultActionToken`, and the return URL is
-built with `Urls.actionTokenBuilder(...)` plus `Constants.EXECUTION`. `handleToken` calls
-`tokenContext.processFlow(...)` with a five-argument signature that has changed before.
+`SmartPatientSelectionActionTokenHandler` extends `AbstractActionTokenHandler`, its token extends
+`DefaultActionToken`, and the return URL is built with `Urls.actionTokenBuilder(...)` plus
+`Constants.EXECUTION`. `handleToken` calls `tokenContext.processFlow(...)` with a five-argument
+signature that has changed before. It is the only action token this plugin mints.
 
 Note that the EHR-launch path deliberately does **not** use an action token: an EHR launch has
 nobody authenticated yet, and the action-token endpoint requires the token to name a user.
 Naming the literal username `admin` to satisfy it fails on a stock OpenMRS database, where the
 administrator's `username` column is NULL and `admin` is its `system_id`.
 
-*Verify:* signature changes are compile errors, so `mvn test` is the first gate. Behaviour needs
-a browser walk of a standalone launch (step 6): the token round-trips through OpenMRS, so a
-changed URL shape or a rejected token only shows up there.
+*Verify:* signature changes are compile errors, so `mvn test` is the first gate, and
+`ProviderContractTest.services_shouldNameOnlyClassesThatCanBeLoaded` covers the registration files —
+a line naming a handler the jar no longer contains makes `ServiceLoader` throw for that whole SPI at
+startup, taking its siblings with it, with nothing to see at build time. Behaviour needs a browser
+walk of a standalone launch: the token round-trips through OpenMRS, so a changed URL shape or a
+rejected token only shows up there.
 
 ### 6. Unrecognised authorization-endpoint parameters arrive as prefixed client notes
 
@@ -142,6 +145,12 @@ changed URL shape or a rejected token only shows up there.
 not recognise. If Keycloak stops doing this, or starts recognising `aud` itself, the note is
 absent — and the validator then rejects every request, which is the safe direction but a total
 outage.
+
+Parameters Keycloak *does* recognise take the other spelling: `AuthorizationEndpoint` stores them as
+a plain client note under the parameter's own name. `resource` is one of them
+(`AuthzEndpointRequestParser.KNOWN_REQ_PARAMS`), so the validator reads both the prefixed and the
+plain note for every parameter name it accepts. A release that moves `aud` or `audience` into
+`KNOWN_REQ_PARAMS`, or takes `resource` out of it, swaps which spelling carries the value.
 
 *Verify:* a browser launch. `mvn test` cannot see this: the tests set the note themselves. If
 launches start failing with *"SMART App Launch requires an 'aud' parameter"* while the app is
@@ -155,17 +164,20 @@ The OpenMRS module verifies with the same shared secret, so a change in how Keyc
 JWS breaks the pair, not just this side.
 
 *Verify:* `mvn test` compiles against them and `SmartLaunchSecretTest` exercises key
-construction. Round-tripping needs the module: step 6.
+construction. Round-tripping needs the module and a browser walk of a standalone launch.
 
 ### 8. Token-response mapping
 
 `SmartContextClaimMapper` extends `AbstractOIDCProtocolMapper`, implements
-`OIDCAccessTokenResponseMapper`, and calls `OIDCAttributeMapperHelper.mapClaim(...)`
-(`splitClaimPath` was removed in favour of it). SMART 2.x puts launch context in the token
-response, not only in the access token, so losing `OIDCAccessTokenResponseMapper` means apps
-receive a token with no `patient` or `encounter` and no error.
+`OIDCAccessTokenResponseMapper`, `OIDCAccessTokenMapper` and `OIDCIDTokenMapper`, and calls
+`OIDCAttributeMapperHelper.mapClaim(...)` (`splitClaimPath` was removed in favour of it). SMART 2.x
+puts launch context in the token response, not only in the access token, so losing
+`OIDCAccessTokenResponseMapper` means apps receive a token with no `patient` or `encounter` and no
+error. Losing either of the other two empties the access token or the id token the same way, which is
+where a resource server and a `fhirUser` claim respectively read the context from.
 
-*Verify:* `mvn test` (`SmartContextClaimMapperTest`), then inspect a real token response in step 6.
+*Verify:* `mvn test` (`SmartContextClaimMapperTest`), then inspect a real token response during the
+browser walk.
 
 ### 9. Packaging and Java version
 

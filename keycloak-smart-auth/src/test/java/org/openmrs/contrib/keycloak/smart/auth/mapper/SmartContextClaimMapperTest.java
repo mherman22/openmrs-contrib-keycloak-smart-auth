@@ -23,13 +23,20 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientSessionContext;
+import org.keycloak.models.KeycloakContext;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.ProtocolMapperUtils;
+import org.keycloak.protocol.oidc.mappers.OIDCAccessTokenMapper;
+import org.keycloak.protocol.oidc.mappers.OIDCAccessTokenResponseMapper;
 import org.keycloak.protocol.oidc.mappers.OIDCAttributeMapperHelper;
+import org.keycloak.protocol.oidc.mappers.OIDCIDTokenMapper;
+import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.AccessTokenResponse;
+import org.keycloak.representations.IDToken;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -165,6 +172,89 @@ public class SmartContextClaimMapperTest {
 		AccessTokenResponse result = transform(mapperModel("smart-oidc-note.nothing-here", "whatever"));
 
 		assertFalse(result.getOtherClaims().containsKey("whatever"));
+	}
+
+	/**
+	 * The access token and the id token are separate destinations from the token response, each gated
+	 * by its own config flag. A resource server sees only the access token.
+	 */
+	private ProtocolMapperModel tokenModel(String sessionNote, String claimName, boolean accessToken,
+			boolean idToken) {
+		ProtocolMapperModel model = mapperModel(sessionNote, claimName);
+		model.getConfig().put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, String.valueOf(accessToken));
+		model.getConfig().put(OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN, String.valueOf(idToken));
+		return model;
+	}
+
+	/** transformAccessToken consults the client for the lightweight-token setting before mapping. */
+	private void stubLightweightTokenLookup() {
+		KeycloakContext keycloakContext = org.mockito.Mockito.mock(KeycloakContext.class);
+		ClientModel client = org.mockito.Mockito.mock(ClientModel.class);
+		lenient().when(keycloakSession.getContext()).thenReturn(keycloakContext);
+		lenient().when(keycloakContext.getClient()).thenReturn(client);
+		lenient().when(client.getAttribute(anyString())).thenReturn(null);
+	}
+
+	@Test
+	public void transformAccessToken_shouldPutTheLaunchContextInTheAccessToken() {
+		stubLightweightTokenLookup();
+		notes.put(SmartContextClaimMapper.SMART_PATIENT_PARAMS, PATIENT_UUID);
+
+		AccessToken token = (AccessToken) mapper.transformAccessToken(new AccessToken(),
+				tokenModel(SmartContextClaimMapper.SMART_PATIENT_PARAMS, "patient", true, false), keycloakSession,
+				userSession, clientSessionContext);
+
+		assertEquals(PATIENT_UUID, token.getOtherClaims().get("patient"),
+				"a resource server sees only the access token, so the context has to be in it");
+	}
+
+	@Test
+	public void transformAccessToken_shouldWriteNothingWhenTheLaunchEstablishedNoContext() {
+		stubLightweightTokenLookup();
+		notes.put(SmartContextClaimMapper.SMART_PATIENT_PARAMS, "");
+
+		AccessToken token = (AccessToken) mapper.transformAccessToken(new AccessToken(),
+				tokenModel(SmartContextClaimMapper.SMART_PATIENT_PARAMS, "patient", true, false), keycloakSession,
+				userSession, clientSessionContext);
+
+		assertFalse(token.getOtherClaims().containsKey("patient"),
+				"an empty reference is worse than none; the claim should be absent");
+	}
+
+	@Test
+	public void transformIDToken_shouldPutFhirUserInTheIdToken() {
+		notes.put(SmartContextClaimMapper.SMART_FHIR_USER_PARAMS, "Practitioner/" + PATIENT_UUID);
+
+		IDToken token = mapper.transformIDToken(new IDToken(),
+				tokenModel(SmartContextClaimMapper.SMART_FHIR_USER_PARAMS, "fhirUser", false, true), keycloakSession,
+				userSession, clientSessionContext);
+
+		assertEquals("Practitioner/" + PATIENT_UUID, token.getOtherClaims().get("fhirUser"),
+				"SMART puts fhirUser in the id_token");
+	}
+
+	@Test
+	public void transformIDToken_shouldWriteNothingWhenTheLaunchEstablishedNoContext() {
+		notes.put(SmartContextClaimMapper.SMART_FHIR_USER_PARAMS, "");
+
+		IDToken token = mapper.transformIDToken(new IDToken(),
+				tokenModel(SmartContextClaimMapper.SMART_FHIR_USER_PARAMS, "fhirUser", false, true), keycloakSession,
+				userSession, clientSessionContext);
+
+		assertFalse(token.getOtherClaims().containsKey("fhirUser"));
+	}
+
+	/**
+	 * TokenManager filters mappers by {@code instanceof} before calling any of them, so dropping one of
+	 * these interfaces silently empties that destination -- the transform method stays inherited from
+	 * AbstractOIDCProtocolMapper and keeps working when called directly, so only the type catches it.
+	 */
+	@Test
+	public void mapper_shouldDeclareEveryInterfaceTokenManagerDispatchesOn() {
+		assertInstanceOf(OIDCAccessTokenResponseMapper.class, mapper,
+				"without this the token response carries no patient or encounter");
+		assertInstanceOf(OIDCAccessTokenMapper.class, mapper, "without this the access token carries no context");
+		assertInstanceOf(OIDCIDTokenMapper.class, mapper, "without this the id token carries no fhirUser");
 	}
 
 	@Test

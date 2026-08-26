@@ -18,37 +18,23 @@ import org.keycloak.authentication.AuthenticationFlowException;
 import org.keycloak.authentication.Authenticator;
 import org.keycloak.common.VerificationException;
 import org.keycloak.common.util.Base64;
-import org.keycloak.common.util.Time;
-import org.keycloak.crypto.Algorithm;
 import org.keycloak.crypto.JavaAlgorithm;
-import org.keycloak.crypto.KeyWrapper;
-import org.keycloak.crypto.MacSignatureSignerContext;
-import org.keycloak.crypto.SignatureSignerContext;
-import org.keycloak.jose.jws.JWSBuilder;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.representations.JsonWebToken;
-import org.keycloak.services.Urls;
 import org.keycloak.services.messages.Messages;
 import org.keycloak.sessions.AuthenticationSessionModel;
-import org.openmrs.contrib.keycloak.smart.auth.token.SmartUserNameToken;
 
 import javax.crypto.spec.SecretKeySpec;
 import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.Objects;
-
-import static org.keycloak.OAuth2Constants.JWT;
-import static org.openmrs.contrib.keycloak.smart.auth.provider.SmartLaunchAuthenticator.SMART_NOTE_PREFIX;
 
 public class SmartLaunchAccessAuthenticator implements Authenticator {
 
@@ -83,10 +69,7 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 				accessEndUrl = DEFAULT_PATIENT_ACCESS_URL;
 			}
 
-			int validityInSecs = context.getRealm().getActionTokenGeneratedByUserLifespan();
-			int absoluteExpirationInSecs = Time.currentTime() + validityInSecs;
 			final AuthenticationSessionModel authSession = context.getAuthenticationSession();
-			final String clientId = authSession.getClient().getClientId();
 
 			final String accessCode = context.generateAccessCode();
 			final String actionUrl = context.getActionUrl(accessCode).toString();
@@ -159,7 +142,17 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 		SmartLaunchAuthenticator.writeContextNotes(authSession, appToken.getOtherClaims());
 
 		UserModel user = context.getSession().users().getUserByUsername(context.getRealm(), username);
-		context.getAuthenticationSession().setAuthenticatedUser(user);
+
+		if (user == null) {
+			// success() here would complete the execution with nobody authenticated, which Keycloak
+			// turns into an UNKNOWN_USER error page. Reported as attempted so the login form can run.
+			logger.warnf("OpenMRS returned a launch for '%s', which realm %s has no user for; "
+					+ "leaving the launch to the next authenticator", username, context.getRealm().getName());
+			context.attempted();
+			return;
+		}
+
+		authSession.setAuthenticatedUser(user);
 
 		context.success();
 	}
@@ -184,39 +177,9 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 
 	}
 
-	private String buildUserNameToken(AuthenticationFlowContext context, int absoluteExpirationInSecs, String clientId,
-			String accessUrl) throws IOException {
-
-		SmartUserNameToken userToken = new SmartUserNameToken(
-				absoluteExpirationInSecs,
-				clientId
-		);
-
-		String issuer = Urls.realmIssuer(context.getUriInfo().getBaseUri(), context.getRealm().getName());
-		userToken.issuer(issuer);
-
-		URL usernameAudienceUrl;
-		try {
-			usernameAudienceUrl = new URL(accessUrl);
-		}
-		catch (MalformedURLException e) {
-			throw new AuthenticationFlowException("Could not parse external URL " + accessUrl, e,
-					AuthenticationFlowError.INTERNAL_ERROR);
-		}
-
-		userToken.audience(SmartUserNameToken.audienceFor(usernameAudienceUrl));
-
-		KeyWrapper key = new KeyWrapper();
-		key.setAlgorithm(Algorithm.HS256);
-		key.setSecretKey(getSecretKey(context.getAuthenticatorConfig(), context.getRealm().getName()));
-		SignatureSignerContext signer = new MacSignatureSignerContext(key);
-
-		return new JWSBuilder().type(JWT).jsonContent(userToken).sign(signer);
-	}
-
 	/**
-	 * The shared secret signing the token sent to OpenMRS and verifying the one it returns, which is
-	 * itself the authentication here. No default: a key an attacker also knows would forge any launch.
+	 * The shared secret verifying the token OpenMRS returns, which is itself the authentication here.
+	 * No default: a key an attacker also knows would forge any launch.
 	 */
 	SecretKeySpec getSecretKey(AuthenticatorConfigModel authenticatorConfig, String realmName) throws
 			IOException {
@@ -227,7 +190,7 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 		}
 
 		if (StringUtils.isBlank(secretKey)) {
-			logger.warnf("Refusing to sign or verify a SMART launch token: %s is not configured for realm %s",
+			logger.warnf("Refusing to verify a SMART launch token: %s is not configured for realm %s",
 					SmartLaunchAccessAuthenticatorFactory.CONFIG_SMART_LAUNCH_ACCESS_SECRET_KEY, realmName);
 			throw new AuthenticationFlowException("Secret key is not configured for realm " + realmName,
 					AuthenticationFlowError.INTERNAL_ERROR);

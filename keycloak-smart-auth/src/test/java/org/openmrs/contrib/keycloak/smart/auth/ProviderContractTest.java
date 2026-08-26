@@ -16,15 +16,17 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +35,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.authentication.AuthenticatorFactory;
+import org.keycloak.authentication.actiontoken.ActionTokenHandlerFactory;
 import org.keycloak.authentication.authenticators.browser.UsernamePasswordFormFactory;
+import org.keycloak.protocol.ProtocolMapper;
 import org.openmrs.contrib.keycloak.smart.auth.provider.AlternativeUsernamePasswordFormFactory;
 
 /**
@@ -48,7 +52,18 @@ public class ProviderContractTest {
 	 */
 	private static final int MAX_AUTHENTICATOR_ID_LENGTH = 36;
 
+	private static final String OUR_PACKAGE = "org.openmrs.contrib.keycloak.smart.auth.";
+
 	private static final String SERVICES_FILE = "META-INF/services/" + AuthenticatorFactory.class.getName();
+
+	/**
+	 * Every SPI this plugin registers into. A line naming a class the jar does not contain makes
+	 * ServiceLoader throw for the whole SPI, so each file needs checking, not just the authenticators.
+	 */
+	private static final List<String> SERVICES_FILES = Arrays.asList(
+			SERVICES_FILE,
+			"META-INF/services/" + ActionTokenHandlerFactory.class.getName(),
+			"META-INF/services/" + ProtocolMapper.class.getName());
 
 	static List<AuthenticatorFactory> factories() throws Exception {
 		List<AuthenticatorFactory> factories = new ArrayList<>();
@@ -58,17 +73,33 @@ public class ProviderContractTest {
 		return factories;
 	}
 
+	private static final Predicate<String> OURS = name -> name.startsWith(OUR_PACKAGE);
+
 	/** Reads the service registration file, so the test covers what Keycloak will actually load. */
 	private static List<String> declaredFactoryClassNames() throws IOException {
-		try (InputStream in = ProviderContractTest.class.getClassLoader().getResourceAsStream(SERVICES_FILE)) {
-			if (in == null) {
-				throw new IOException("missing service registration file: " + SERVICES_FILE);
-			}
-			try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-				return reader.lines().map(String::trim).filter(l -> !l.isEmpty() && !l.startsWith("#"))
-						.collect(Collectors.toList());
+		return declaredClassNames(SERVICES_FILE, OURS);
+	}
+
+	/**
+	 * Class names from every copy of {@code servicesFile} on the classpath that {@code selector}
+	 * accepts. Keycloak ships its own copy of each of these files, so the selector decides whose
+	 * registrations a caller is looking at rather than which copy happens to be found first.
+	 */
+	private static List<String> declaredClassNames(String servicesFile, Predicate<String> selector)
+			throws IOException {
+		List<String> names = new ArrayList<>();
+		Enumeration<URL> resources = ProviderContractTest.class.getClassLoader().getResources(servicesFile);
+
+		while (resources.hasMoreElements()) {
+			URL resource = resources.nextElement();
+			try (BufferedReader reader = new BufferedReader(
+					new InputStreamReader(resource.openStream(), StandardCharsets.UTF_8))) {
+				names.addAll(reader.lines().map(String::trim).filter(l -> !l.isEmpty() && !l.startsWith("#"))
+						.filter(selector).collect(Collectors.toList()));
 			}
 		}
+
+		return names;
 	}
 
 	@Test
@@ -125,6 +156,59 @@ public class ProviderContractTest {
 				"sharing the built-in id replaces the stock login form instance-wide");
 		assertNotEquals(builtIn.getDisplayType(), ours.getDisplayType(),
 				"an identical display name makes the two indistinguishable in the admin console");
+	}
+
+	/**
+	 * The login form is the one we collided with, but the hazard is not specific to it: factories are
+	 * keyed by getId() and the last one loaded wins, so any id shared with a stock authenticator
+	 * replaces that authenticator for every realm in the instance.
+	 */
+	@Test
+	public void getId_shouldNotShadowAnyBuiltInKeycloakAuthenticator() throws Exception {
+		Set<String> builtInIds = builtInAuthenticatorIds();
+
+		// Without this the loop below would pass by finding nothing to compare against.
+		assertFalse(builtInIds.isEmpty(), "no built-in authenticator ids were read, so the check is vacuous");
+		assertTrue(builtInIds.contains(new UsernamePasswordFormFactory().getId()),
+				"the built-in login form should be among the ids read; " + builtInIds.size() + " were found");
+
+		for (AuthenticatorFactory ours : factories()) {
+			assertFalse(builtInIds.contains(ours.getId()),
+					"provider id '" + ours.getId() + "' is a stock Keycloak authenticator id; registering it "
+							+ "replaces that authenticator for every realm in the instance");
+		}
+	}
+
+	/** The ids Keycloak's own AuthenticatorFactory registrations claim, read the way Keycloak reads them. */
+	private static Set<String> builtInAuthenticatorIds() throws Exception {
+		Set<String> ids = new HashSet<>();
+
+		for (String className : declaredClassNames(SERVICES_FILE, OURS.negate())) {
+			AuthenticatorFactory factory = (AuthenticatorFactory) Class.forName(className).getDeclaredConstructor()
+					.newInstance();
+			ids.add(factory.getId());
+		}
+
+		return ids;
+	}
+
+	/**
+	 * A services line naming a class the jar does not contain makes ServiceLoader throw
+	 * ServiceConfigurationError for that whole SPI, taking every sibling registered in the same file
+	 * down with it -- at Keycloak startup, with nothing to see at build time.
+	 */
+	@Test
+	public void services_shouldNameOnlyClassesThatCanBeLoaded() throws Exception {
+		for (String servicesFile : SERVICES_FILES) {
+			List<String> declared = declaredClassNames(servicesFile, OURS);
+
+			assertFalse(declared.isEmpty(), servicesFile + " registers none of this plugin's providers");
+
+			for (String className : declared) {
+				assertDoesNotThrow(() -> Class.forName(className).getDeclaredConstructor().newInstance(),
+						servicesFile + " names " + className + ", which ServiceLoader would fail to instantiate");
+			}
+		}
 	}
 
 	/**
