@@ -289,7 +289,7 @@ public class SmartLaunchAuthenticator implements Authenticator {
 		// sign the token with a shared secret so it can be verified by the client
 		KeyWrapper key = new KeyWrapper();
 		key.setAlgorithm(Algorithm.HS256);
-		key.setSecretKey(getSecretKey(context.getAuthenticatorConfig(), context.getRealm().getDisplayName()));
+		key.setSecretKey(getSecretKey(context.getAuthenticatorConfig(), context.getRealm().getName()));
 		SignatureSignerContext signer = new MacSignatureSignerContext(key);
 
 		return new JWSBuilder().type(JWT).jsonContent(userToken).sign(signer);
@@ -298,7 +298,7 @@ public class SmartLaunchAuthenticator implements Authenticator {
 	private void validateAppToken(AuthenticationFlowContext context, String appTokenString)
 			throws VerificationException, IOException {
 		TokenVerifier.create(appTokenString, JsonWebToken.class)
-				.secretKey(getSecretKey(context.getAuthenticatorConfig(), context.getRealm().getDisplayName()))
+				.secretKey(getSecretKey(context.getAuthenticatorConfig(), context.getRealm().getName()))
 				.verify();
 	}
 

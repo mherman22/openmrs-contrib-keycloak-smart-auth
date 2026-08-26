@@ -10,6 +10,7 @@
 package org.openmrs.contrib.keycloak.smart.auth.provider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -19,6 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -40,6 +42,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.AuthenticationFlowError;
+import org.keycloak.authentication.AuthenticationFlowException;
 import org.keycloak.common.util.Base64;
 import org.keycloak.common.util.Time;
 import org.keycloak.crypto.Algorithm;
@@ -375,6 +378,23 @@ public class SmartLaunchAccessAuthenticatorTest {
 			verify(context).failure(eq(AuthenticationFlowError.INTERNAL_ERROR), any());
 			verify(context, never()).success();
 			verify(authSession, never()).setAuthenticatedUser(any());
+		}
+
+		/**
+		 * The realm's display name is optional in Keycloak and unset in the realm this plugin ships
+		 * against, so a fail-closed message that named the realm by it would name no realm at all on the
+		 * deployment it matters for. setUp() stubs the two apart on purpose: this reads "openmrs".
+		 */
+		@Test
+		public void action_shouldNameTheRealmByItsNameWhenNoSecretIsConfigured() throws Exception {
+			when(context.getAuthenticatorConfig()).thenReturn(null);
+			returningFromOpenmrs(appToken(CLINICIAN, new HashMap<>(), SECRET));
+
+			AuthenticationFlowException thrown = assertThrows(AuthenticationFlowException.class,
+					() -> authenticator.action(context));
+
+			assertTrue(thrown.getMessage().endsWith("realm openmrs"),
+					"the fail-closed message should name the realm by getName(); got: " + thrown.getMessage());
 		}
 	}
 }

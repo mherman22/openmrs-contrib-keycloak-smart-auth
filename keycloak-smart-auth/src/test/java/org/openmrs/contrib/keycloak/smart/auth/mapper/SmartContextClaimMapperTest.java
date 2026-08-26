@@ -248,9 +248,11 @@ public class SmartContextClaimMapperTest {
 	 * TokenManager filters mappers by {@code instanceof} before calling any of them, so dropping one of
 	 * these interfaces silently empties that destination -- the transform method stays inherited from
 	 * AbstractOIDCProtocolMapper and keeps working when called directly, so only the type catches it.
+	 * These are the destinations SMART reads launch context from; TokenManager dispatches on further
+	 * mapper interfaces, which this mapper does not implement.
 	 */
 	@Test
-	public void mapper_shouldDeclareEveryInterfaceTokenManagerDispatchesOn() {
+	public void mapper_shouldDeclareTheInterfacesForTheTokenResponseAccessTokenAndIdToken() {
 		assertInstanceOf(OIDCAccessTokenResponseMapper.class, mapper,
 				"without this the token response carries no patient or encounter");
 		assertInstanceOf(OIDCAccessTokenMapper.class, mapper, "without this the access token carries no context");

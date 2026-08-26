@@ -12,14 +12,20 @@ package org.openmrs.contrib.keycloak.smart.auth;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
+import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -28,8 +34,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -54,16 +60,22 @@ public class ProviderContractTest {
 
 	private static final String OUR_PACKAGE = "org.openmrs.contrib.keycloak.smart.auth.";
 
-	private static final String SERVICES_FILE = "META-INF/services/" + AuthenticatorFactory.class.getName();
-
 	/**
-	 * Every SPI this plugin registers into. A line naming a class the jar does not contain makes
-	 * ServiceLoader throw for the whole SPI, so each file needs checking, not just the authenticators.
+	 * Every SPI this plugin registers into. A line naming a class the jar does not contain, or one that
+	 * does not implement the SPI whose file it sits in, makes ServiceLoader throw for the whole SPI, so
+	 * each file needs checking, not just the authenticators. The interface is carried alongside the file
+	 * name because the file name is the only thing that says which SPI a line is claiming to implement.
 	 */
-	private static final List<String> SERVICES_FILES = Arrays.asList(
-			SERVICES_FILE,
-			"META-INF/services/" + ActionTokenHandlerFactory.class.getName(),
-			"META-INF/services/" + ProtocolMapper.class.getName());
+	private static final List<Class<?>> REGISTERED_SPIS = Arrays.asList(
+			AuthenticatorFactory.class,
+			ActionTokenHandlerFactory.class,
+			ProtocolMapper.class);
+
+	private static final String SERVICES_FILE = servicesFileFor(AuthenticatorFactory.class);
+
+	private static String servicesFileFor(Class<?> spi) {
+		return "META-INF/services/" + spi.getName();
+	}
 
 	static List<AuthenticatorFactory> factories() throws Exception {
 		List<AuthenticatorFactory> factories = new ArrayList<>();
@@ -113,6 +125,58 @@ public class ProviderContractTest {
 		assertTrue(declared.stream().anyMatch(n -> n.endsWith("SmartLaunchAuthenticatorFactory")));
 		assertTrue(declared.stream().anyMatch(n -> n.endsWith("SmartLaunchAccessAuthenticatorFactory")));
 		assertEquals(4, declared.size(), "unexpected number of registered authenticators; update this test deliberately");
+
+		// The assertions above read the services file, so they cannot see a factory that is in the jar and
+		// not in the file. This walks the compiled classes instead, which is the direction that hazard runs.
+		List<String> compiled = implementationsOnTheClasspath(AuthenticatorFactory.class);
+
+		assertTrue(compiled.contains(AlternativeUsernamePasswordFormFactory.class.getName()),
+				"the classpath scan found no factory it should have, so the loop below is vacuous: " + compiled);
+
+		for (String className : compiled) {
+			assertTrue(declared.contains(className), className + " implements AuthenticatorFactory but "
+					+ SERVICES_FILE + " does not name it, so Keycloak never loads it");
+		}
+	}
+
+	/**
+	 * This plugin's classes on the classpath that implement {@code spi}, found by walking the compiled
+	 * output rather than the registration file, so a class present in the jar and absent from the file is
+	 * visible. Classes are loaded without initialising them; only directory classpath entries are walked,
+	 * which is what Surefire hands us, and the caller asserts the walk found something. Both compiled
+	 * roots are walked, so a test-only AuthenticatorFactory in this package would have to be registered
+	 * too -- put one outside this package rather than adding a services entry for it.
+	 */
+	private static List<String> implementationsOnTheClasspath(Class<?> spi) throws Exception {
+		List<String> names = new ArrayList<>();
+		ClassLoader loader = ProviderContractTest.class.getClassLoader();
+		Enumeration<URL> roots = loader.getResources(OUR_PACKAGE.replace('.', '/'));
+
+		while (roots.hasMoreElements()) {
+			URL root = roots.nextElement();
+
+			if (!"file".equals(root.getProtocol())) {
+				continue;
+			}
+
+			Path packageDir = Paths.get(root.toURI());
+
+			try (Stream<Path> tree = Files.walk(packageDir)) {
+				for (Path classFile : tree.filter(f -> f.toString().endsWith(".class")).collect(Collectors.toList())) {
+					String relative = packageDir.relativize(classFile).toString();
+					String className = OUR_PACKAGE
+							+ relative.substring(0, relative.length() - ".class".length()).replace(File.separatorChar,
+									'.');
+					Class<?> candidate = Class.forName(className, false, loader);
+
+					if (spi.isAssignableFrom(candidate) && !Modifier.isAbstract(candidate.getModifiers())) {
+						names.add(className);
+					}
+				}
+			}
+		}
+
+		return names;
 	}
 
 	@MethodSource("factories")
@@ -193,20 +257,27 @@ public class ProviderContractTest {
 	}
 
 	/**
-	 * A services line naming a class the jar does not contain makes ServiceLoader throw
-	 * ServiceConfigurationError for that whole SPI, taking every sibling registered in the same file
-	 * down with it -- at Keycloak startup, with nothing to see at build time.
+	 * A services line naming a class the jar does not contain, or one that does not implement the SPI its
+	 * file is named for, makes ServiceLoader throw ServiceConfigurationError for that whole SPI, taking
+	 * every sibling registered in the same file down with it -- at Keycloak startup, with nothing to see
+	 * at build time. Deleting a line is caught by the emptiness check; replacing a line with a class of
+	 * the wrong type is caught by the assertInstanceOf, which is the copy-pasted-filename case.
 	 */
 	@Test
 	public void services_shouldNameOnlyClassesThatCanBeLoaded() throws Exception {
-		for (String servicesFile : SERVICES_FILES) {
+		for (Class<?> spi : REGISTERED_SPIS) {
+			String servicesFile = servicesFileFor(spi);
 			List<String> declared = declaredClassNames(servicesFile, OURS);
 
 			assertFalse(declared.isEmpty(), servicesFile + " registers none of this plugin's providers");
 
 			for (String className : declared) {
-				assertDoesNotThrow(() -> Class.forName(className).getDeclaredConstructor().newInstance(),
+				Object instance = assertDoesNotThrow(
+						() -> Class.forName(className).getDeclaredConstructor().newInstance(),
 						servicesFile + " names " + className + ", which ServiceLoader would fail to instantiate");
+
+				assertInstanceOf(spi, instance, servicesFile + " names " + className + ", which does not implement "
+						+ spi.getName() + "; ServiceLoader rejects the whole file with \"not a subtype\"");
 			}
 		}
 	}

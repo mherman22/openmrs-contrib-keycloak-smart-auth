@@ -2,11 +2,12 @@ Upgrading Keycloak under this plugin
 ====================================
 
 Every SPI this plugin implements is one Keycloak marks internal — the server logs
-`KC-SERVICES0047` for each of our four authenticators and the protocol mapper on every
-start. Internal means Keycloak owes us no compatibility, and most of the ways it can break
-us produce **no compiler error and no startup error**: an authenticator Keycloak never
-invokes, a config key it stores and ignores, a flow that imports and silently skips a
-check. This document lists the couplings, worst first, and how to verify each one.
+`KC-SERVICES0047` for each of our four authenticators, the protocol mapper and the
+action-token handler on every start. Internal means Keycloak owes us no compatibility,
+and most of the ways it can break us produce **no compiler error and no startup error**:
+an authenticator Keycloak never invokes, a config key it stores and ignores, a flow that
+imports and silently skips a check. This document lists the couplings, worst first, and
+how to verify each one.
 
 Order of work on a version bump
 -------------------------------
@@ -15,7 +16,11 @@ Order of work on a version bump
 2. `mvn clean test`. This is the compile-time half: it catches SPI signature changes and
    the constraints in `ProviderContractTest`.
 3. Deploy and build: copy the JAR into `$KEYCLOAK_HOME/providers/`, run `kc.sh build`,
-   start the server. Check the log lists all five providers.
+   start the server. Check the log names each of ours — `smart-audience-validator`,
+   `smart-access-authenticator`, `smart-application-authenticator`, `smart-username-password-form`,
+   `smart-context-claim-mapper` and the action-token handler `smart-patient-selection`. Check them off
+   against that list, not against a count: the action-token handler is the registration whose absence
+   the *Action tokens* coupling describes, and a count is what lets it pass unnoticed.
 4. Run the distribution's `realm/verify-realm-import.sh` (in
    openmrs-distro-smartonfhir). Realm-side checks live there, not here.
 5. Walk both launch types in a **browser**, not with curl: an EHR launch and a standalone
@@ -132,29 +137,32 @@ Naming the literal username `admin` to satisfy it fails on a stock OpenMRS datab
 administrator's `username` column is NULL and `admin` is its `system_id`.
 
 *Verify:* signature changes are compile errors, so `mvn test` is the first gate, and
-`ProviderContractTest.services_shouldNameOnlyClassesThatCanBeLoaded` covers the registration files —
-a line naming a handler the jar no longer contains makes `ServiceLoader` throw for that whole SPI at
-startup, taking its siblings with it, with nothing to see at build time. Behaviour needs a browser
-walk of a standalone launch: the token round-trips through OpenMRS, so a changed URL shape or a
-rejected token only shows up there.
+`ProviderContractTest.services_shouldNameOnlyClassesThatCanBeLoaded` covers the registration files. A
+line naming a handler the jar no longer contains, and a line naming a class that does not implement the
+SPI its file is named for, both make `ServiceLoader` throw for that whole SPI at startup, taking its
+siblings with it, with nothing to see at build time; emptying the action-token services file and
+repointing it at `SmartAudienceValidator` were each run against that test and each reddens it.
+Behaviour needs a browser walk of a standalone launch: the token round-trips through OpenMRS, so a
+changed URL shape or a rejected token only shows up there.
 
-### 6. Unrecognised authorization-endpoint parameters arrive as prefixed client notes
+### 6. Which client note carries the audience depends on whether Keycloak recognises the parameter
 
-`SmartAudienceValidator` reads `aud` from the client note `client_request_param_aud`
-(`CLIENT_REQUEST_PARAM_PREFIX`), because that is where Keycloak copies query parameters it does
-not recognise. If Keycloak stops doing this, or starts recognising `aud` itself, the note is
-absent — and the validator then rejects every request, which is the safe direction but a total
-outage.
+`SmartAudienceValidator` reads the audience from a client note, and which note it lands in depends on
+the parameter name. Names Keycloak does not recognise are copied to a note prefixed
+`client_request_param_` (`CLIENT_REQUEST_PARAM_PREFIX`); names it does recognise `AuthorizationEndpoint`
+stores as a plain note under the parameter's own name. In 26.7.1 `resource` is recognised and `aud` and
+`audience` are not (`AuthzEndpointRequestParser.KNOWN_REQ_PARAMS`), so the validator reads both spellings
+for every parameter name it accepts. A release that moves `aud` or `audience` into `KNOWN_REQ_PARAMS`, or
+takes `resource` out of it, only swaps which spelling carries the value and the validator still finds it.
+A release that stops writing either note is the outage case: the validator then sees no audience at all
+and rejects every request — the safe direction, but a total outage.
 
-Parameters Keycloak *does* recognise take the other spelling: `AuthorizationEndpoint` stores them as
-a plain client note under the parameter's own name. `resource` is one of them
-(`AuthzEndpointRequestParser.KNOWN_REQ_PARAMS`), so the validator reads both the prefixed and the
-plain note for every parameter name it accepts. A release that moves `aud` or `audience` into
-`KNOWN_REQ_PARAMS`, or takes `resource` out of it, swaps which spelling carries the value.
-
-*Verify:* a browser launch. `mvn test` cannot see this: the tests set the note themselves. If
-launches start failing with *"SMART App Launch requires an 'aud' parameter"* while the app is
-sending one, this is the coupling that moved.
+*Verify:* a browser launch. `mvn test` pins that the validator reads both spellings — deleting the
+plain-note read from `presentedAudience` reddens
+`SmartAudienceValidatorTest.authenticate_shouldReadEveryAudienceParameterFromAPlainNoteToo` and
+`authenticate_shouldAcceptResourceArrivingAsAPlainClientNote` — but not which note Keycloak writes,
+because the tests set the notes themselves. If launches start failing with *"SMART App Launch requires an
+'aud' parameter"* while the app is sending one, this is the coupling that moved.
 
 ### 7. HMAC signing and verification internals
 

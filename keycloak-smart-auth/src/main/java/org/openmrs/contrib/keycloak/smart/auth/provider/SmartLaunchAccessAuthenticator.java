@@ -202,7 +202,7 @@ public class SmartLaunchAccessAuthenticator implements Authenticator {
 	private void validateAppToken(AuthenticationFlowContext context, String appTokenString)
 			throws VerificationException, IOException {
 		TokenVerifier.create(appTokenString, JsonWebToken.class)
-				.secretKey(getSecretKey(context.getAuthenticatorConfig(), context.getRealm().getDisplayName()))
+				.secretKey(getSecretKey(context.getAuthenticatorConfig(), context.getRealm().getName()))
 				.verify();
 	}
 }

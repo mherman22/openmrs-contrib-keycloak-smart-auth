@@ -18,6 +18,7 @@ without the other.
 | `smart-application-authenticator` | Carries a standalone launch: sends the clinician to OpenMRS to choose a patient, and brings the choice back into the flow. |
 | `smart-username-password-form` | Keycloak's login form re-registered under its own id, so it can sit as an `ALTERNATIVE` in a flow. The built-in cannot. |
 | `smart-context-claim-mapper` | Puts the chosen patient or encounter in the token response, where SMART 2.x says launch context belongs. |
+| `smart-patient-selection` | The action-token handler `smart-application-authenticator` mints its return URL against, so the browser coming back from OpenMRS re-enters the flow it left. |
 
 ## Building and installing
 
